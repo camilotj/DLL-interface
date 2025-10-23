@@ -4,7 +4,7 @@ const {
   RETURN_CODES,
   BLOB_RETURN_CODES,
   PORT_MODES,
-} = require("./tmg-iolink-interface");
+} = require("./iolink-interface");
 
 console.log("Testing TMG IO-Link Interface Module Loading...\n");
 

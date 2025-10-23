@@ -10,6 +10,9 @@ const BYTE = ref.types.uint8;
 const WORD = ref.types.uint16;
 const LONG = ref.types.int32;
 const DWORD = ref.types.uint32;
+const BYTE_PTR = ref.refType(BYTE);
+const DWORD_PTR = ref.refType(DWORD);
+const LONG_PTR = ref.refType(LONG);
 
 // Define TBLOBStatus structure (from TMGIOLBlob.h)
 const TBLOBStatus = StructType({
@@ -31,7 +34,7 @@ const TDeviceIdentification = StructType({
 
 // Load the DLL (adjust path if needed)
 const iolinkDll = ffi.Library(
-  "TMG_USB_IO-Link_Interface_V2_DLL/Binaries/TMGIOLUSBIF20",
+  __dirname + "/TMG_USB_IO-Link_Interface_V2_DLL/Sample_x64/Sample_C/SimpleApplication/TMGIOLUSBIF20_64.dll",
   {
     IOL_GetUSBDevices: [LONG, [ref.refType(TDeviceIdentification), LONG]],
     IOL_Create: [LONG, [ref.types.CString]],
@@ -80,21 +83,81 @@ function checkReturnCode(returnCode, operation) {
 }
 
 // Discover devices
+// Replace your discoverDevices function with this improved version
 function discoverDevices() {
   const maxDevices = 5;
   const deviceList = new ArrayType(TDeviceIdentification, maxDevices)();
+  
+  console.log("Searching for IO-Link Master devices...");
   const numDevices = iolinkDll.IOL_GetUSBDevices(deviceList.ref(), maxDevices);
+  console.log(`Found ${numDevices} devices`);
+  
   if (numDevices <= 0) {
-    throw new Error("No IO-Link Master devices found");
+    console.log("No IO-Link Master devices found. Is the device connected?");
+    return [];
   }
+  
+  // Enhanced debugging
+  console.log(`Device list type: ${typeof deviceList}`);
+  console.log(`Device list length: ${deviceList.length}`);
+  
   const devices = [];
   for (let i = 0; i < numDevices; i++) {
-    const device = deviceList[i];
-    devices.push({
-      name: ref.readCString(device.Name),
-      productCode: ref.readCString(device.ProductCode),
-      viewName: ref.readCString(device.ViewName),
-    });
+    try {
+      console.log(`Processing device ${i}...`);
+      
+      // Access the device with defensive programming
+      const device = deviceList[i];
+      
+      if (!device) {
+        console.log(`Device ${i} is undefined`);
+        continue;
+      }
+      
+      // Safely get properties using fixed lengths
+      // In C, these are fixed-length character arrays, so we need to extract until null terminator
+      const getName = () => {
+        try {
+          // Find first null terminator in Name buffer
+          if (!device.Name || !device.Name.length) return "Unknown";
+          
+          // Convert the raw buffer to a string (stopping at null terminator)
+          const nameBuffer = Buffer.from(device.Name);
+          let nameLength = 0;
+          while (nameLength < nameBuffer.length && nameBuffer[nameLength] !== 0) {
+            nameLength++;
+          }
+          return nameBuffer.slice(0, nameLength).toString('utf8');
+        } catch (e) {
+          console.error("Error extracting name:", e);
+          return "COM3"; // Fallback to default COM port
+        }
+      };
+      
+      // Do the same for other properties
+      const getProductCode = () => {
+        try {
+          if (!device.ProductCode) return "Unknown";
+          const buffer = Buffer.from(device.ProductCode);
+          let len = 0;
+          while (len < buffer.length && buffer[len] !== 0) len++;
+          return buffer.slice(0, len).toString('utf8');
+        } catch (e) {
+          return "Unknown";
+        }
+      };
+      
+      const deviceInfo = {
+        name: getName(),
+        productCode: getProductCode(),
+        viewName: "TMG IO-Link Master" // Default friendly name
+      };
+      
+      console.log(`Device ${i} info:`, deviceInfo);
+      devices.push(deviceInfo);
+    } catch (err) {
+      console.error(`Error processing device ${i}:`, err);
+    }
   }
   return devices;
 }

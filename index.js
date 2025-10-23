@@ -6,7 +6,13 @@ async function main() {
   try {
     const devices = iolink.discoverDevices();
     console.log("Found devices:", devices);
-    if (devices.length === 0) return;
+    if (devices.length === 0) {
+      console.log("No IO-Link devices found. Please check if:");
+      console.log("1. The TMG IO-Link Master is physically connected via USB");
+      console.log("2. The device drivers are properly installed");
+      console.log("3. The device is not in use by another application");
+      return;
+    }
 
     const handle = iolink.connect(devices[0].name);
     console.log("Connected to device:", devices[0].name);

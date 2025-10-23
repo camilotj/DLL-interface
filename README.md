@@ -2,61 +2,12 @@
 
 A comprehensive Node.js interface for the TMG USB IO-Link Master V2 DLL, enabling BLOB transfers, process data handling, and streaming functionality.
 
-## 🚀 Quick Start
-
-### Prerequisites
-
-1. **Node.js Dependencies**: Install the required FFI packages
-
-```bash
-npm install ffi-napi ref-napi ref-struct-napi
-```
-
-2. **TMG Hardware & Drivers**:
-
-   - TMG USB IO-Link Master V2 device
-   - Install drivers from `Driver/` folder in the TMG DLL package
-   - Connect device and note the COM port (e.g., COM3)
-
-3. **TMG DLL Files**:
-   - `TMGIOLUSBIF20.dll` - Main DLL
-   - `TMGIOLUSBIF20.h` - Function definitions
-   - `TMGIOLBlob.h` - BLOB function definitions
-
-## 📦 Installation
-
-1. **Clone/Copy the interface files**:
-
-   ```
-   tmg-iolink-interface.js
-   example.js
-   package.json
-   ```
-
-2. **Install dependencies**:
-
-   ```bash
-   npm install
-   ```
-
-   **If npm install fails** (common with native modules):
-
-   ```bash
-   # Install Visual Studio Build Tools first, then:
-   npm config set msvs_version 2019
-   npm install --build-from-source
-   ```
-
-3. **Setup DLL path**: Ensure `TMGIOLUSBIF20.dll` is accessible:
-   - Default: `./TMG_USB_IO-Link_Interface_V2_DLL_V2.31/Binaries/TMGIOLUSBIF20.dll`
-   - Or specify custom path in `initialize()` method
-
-## 🔧 Basic Usage
+## Basic Usage
 
 ### Initialize and Connect
 
 ```javascript
-const { TMGIOLinkInterface } = require("./tmg-iolink-interface");
+const { TMGIOLinkInterface } = require("./iolink-interface");
 
 const tmg = new TMGIOLinkInterface();
 
