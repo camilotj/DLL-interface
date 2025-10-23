@@ -1,11 +1,11 @@
 {
   "name": "tmg-iolink-interface",
   "version": "1.0.0",
-  "description": "Node.js interface for TMG IO-Link USB Master DLL",
+  "description": "Node.js interface for TMG IO-Link USB Master V2 DLL",
   "main": "index.js",
   "scripts": {
     "test": "node test.js",
-    "start": "node example.js"
+    "start": "node index.js"
   },
   "keywords": [
     "io-link",
@@ -15,11 +15,12 @@
     "blob",
     "sensor"
   ],
-  "author": "Your Name",
+  "author": "Camilo & Álvaro",
   "license": "MIT",
   "dependencies": {
     "ffi-napi": "^4.0.3",
     "ref-napi": "^3.0.3",
-    "ref-struct-napi": "^1.1.1"
+    "ref-struct-napi": "^1.1.1",
+    "ref-array-napi": "^1.2.2"
   }
 }
