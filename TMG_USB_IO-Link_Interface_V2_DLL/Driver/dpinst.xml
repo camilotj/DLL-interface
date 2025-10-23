@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<dpInst>
+    <legacyMode/>
+	<suppressWizard/>
+	<quietInstallStrict/>
+	<forceIfDriverIsNotBetter/>
+	<deleteBinaries/>
+	<suppressAddRemovePrograms/>
+	<search>
+		<subDirectory>i386</subDirectory>
+		<subDirectory>amd64</subDirectory>
+	</search>
+
+</dpInst>

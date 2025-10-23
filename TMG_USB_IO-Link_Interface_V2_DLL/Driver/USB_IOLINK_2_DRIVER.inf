@@ -1,0 +1,102 @@
+; *****************************************************
+;   USB IO-Link Driver installation file
+;   Copyright TMG TE GmbH 2016 All Rights Reserved
+; *****************************************************
+[Version] 
+Signature="$Windows NT$" 
+Class=Ports 
+ClassGuid={4D36E978-E325-11CE-BFC1-08002BE10318} 
+Catalogfile=USB_IOLINK_2_DRIVER.cat
+Provider=%IOL% 
+DriverVer=07/01/2021,1.80.0044.0 
+
+[Manufacturer] 
+%IOL%=IOL,NTx86,NTamd64
+
+[IOL.NTx86] 
+%IOLUSB0107%=Reader, USB\VID_2843&PID_0107
+%IOLUSB0207%=Reader, USB\VID_2843&PID_0207
+%IOLUSB0209%=Reader, USB\VID_2843&PID_0209
+%IOLUSB020B%=Reader, USB\VID_2843&PID_020B
+%IOLUSB0507%=Reader, USB\VID_2843&PID_0507
+%IOLUSB0607%=Reader, USB\VID_2843&PID_0607
+%IOLUSB0707%=Reader, USB\VID_2843&PID_0707
+%IOLUSB020C%=Reader, USB\VID_2843&PID_020C
+%IOLUSB020D%=Reader, USB\VID_2843&PID_020D
+%IOLUSB020E%=Reader, USB\VID_2843&PID_020E
+%IOLUSB020F%=Reader, USB\VID_2843&PID_020F
+%IOLUSB0210%=Reader, USB\VID_2843&PID_0210
+%IOLUSB0211%=Reader, USB\VID_2843&PID_0211
+%IOLUSB2DCFD100%=Reader, USB\VID_045B&PID_D100
+
+
+[IOL.NTamd64] 
+%IOLUSB0107%=Reader, USB\VID_2843&PID_0107
+%IOLUSB0207%=Reader, USB\VID_2843&PID_0207
+%IOLUSB0209%=Reader, USB\VID_2843&PID_0209
+%IOLUSB020B%=Reader, USB\VID_2843&PID_020B
+%IOLUSB0507%=Reader, USB\VID_2843&PID_0507
+%IOLUSB0607%=Reader, USB\VID_2843&PID_0607
+%IOLUSB0707%=Reader, USB\VID_2843&PID_0707
+%IOLUSB020C%=Reader, USB\VID_2843&PID_020C
+%IOLUSB020D%=Reader, USB\VID_2843&PID_020D
+%IOLUSB020E%=Reader, USB\VID_2843&PID_020E
+%IOLUSB020F%=Reader, USB\VID_2843&PID_020F
+%IOLUSB0210%=Reader, USB\VID_2843&PID_0210
+%IOLUSB0211%=Reader, USB\VID_2843&PID_0211
+%IOLUSB2DCFD100%=Reader, USB\VID_045B&PID_D100
+
+[Reader.NT] 
+include=mdmcpq.inf
+CopyFiles=FakeModemCopyFileSection 
+AddReg=Reader.NT.AddReg
+
+[Reader.NT.Services] 
+include=mdmcpq.inf
+AddService=usbser, 0x00000002, DriverServiceInst
+
+[Reader.NT.AddReg]
+HKR,,DevLoader,,*ntkern
+HKR,,NTMPDriver,,usbser.sys
+HKR,,EnumPropPages32,,"MsPorts.dll,SerialPortPropPageProvider"
+
+[DriverServiceInst]
+DisplayName=%Serial.SvcDesc%
+ServiceType = 1 ; SERVICE_KERNEL_DRIVER
+StartType = 3 ; SERVICE_DEMAND_START
+ErrorControl = 1 ; SERVICE_ERROR_NORMAL
+ServiceBinary= %12%\usbser.sys
+LoadOrderGroup = Base
+
+[SourceDisksNames]
+;;; this blank section satisfies chkinf
+ 
+[SourceDisksFiles]
+;;; this blank section satisfies chkinf
+ 
+[DestinationDirs]
+FakeModemCopyFileSection=12
+DefaultDestDir = 12
+ 
+[FakeModemCopyFileSection]
+
+
+[Strings] 
+IOL="TMG Technologie und Engineering GmbH"
+IOLUSB0107="TMG USB IO-Link Master V2 - DE"
+IOLUSB0207="TMG USB IO-Link Master V2 - SE"
+IOLUSB0209="Baumer USB IO-Link Master V2 - SE"
+IOLUSB020B="di-soric IOL-Master"
+IOLUSB0507="TMG USB IO-Link Master V2 - TS"
+IOLUSB0607="TMG USB IO-Link Master V2 - EMC"
+IOLUSB0707="TMG USB IO-Link Master V2"
+IOLUSB020C="elo USB IO-Link Master"
+IOLUSB020D="Carlo Gavazzi USB IO-Link Master"
+IOLUSB020E="Emerson USB IO-Link Master"
+IOLUSB020F="Parker Hannifin IO-Link Master USB"
+IOLUSB0210="Endress+Hauser FieldPort SFP20"
+IOLUSB0211="TMG-Renesas CCE4510 IO-Link Evaluation Board"
+IOLUSB2DCFD100="TMG-Renesas CCE4510 IO-Link Evaluation Board"
+
+Serial.SvcDesc = "USB Serial emulation driver" 
+
