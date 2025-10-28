@@ -29,7 +29,7 @@ async function main() {
             `    Port ${device.port}: ${device.vendorName} ${device.deviceName}`
           );
           console.log(
-            `      Vendor ID: ${device.svendorId}, Device ID: ${device.deviceId}`
+            `      Vendor ID: ${device.vendorId}, Device ID: ${device.deviceId}`
           );
           console.log(`      Serial: ${device.serialNumber}`);
           console.log(

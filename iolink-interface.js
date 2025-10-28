@@ -1,4 +1,4 @@
-// contains the DLL loading, structure definitions, and wrapper functions (steps 1-3 from the previous response). It exports the functions for use in other files.
+// Contains the DLL loading, structure definitions, and wrapper functions
 
 const ffi = require("ffi-napi");
 const ref = require("ref-napi");
@@ -80,7 +80,7 @@ const iolinkDll = ffi.Library(
     IOL_GetModeEx: [LONG, [LONG, DWORD, ref.refType(TInfoEx), ref.types.bool]],
     IOL_GetSensorStatus: [LONG, [LONG, DWORD, ref.refType(DWORD)]],
     IOL_GetPortConfig: [LONG, [LONG, DWORD, ref.refType(TPortConfiguration)]],
-    IOL_SetPortConfig: [LONG, [LONG, DWORD, ref.refType(TPortConfiguration)]], // CRITICAL MISSING FUNCTION!
+    IOL_SetPortConfig: [LONG, [LONG, DWORD, ref.refType(TPortConfiguration)]],
     IOL_ReadReq: [LONG, [LONG, DWORD, ref.refType(TParameter)]],
 
     // BLOB functions
@@ -172,7 +172,6 @@ class PortState {
     this.lastStatusCheck = 0;
     this.configurationTimestamp = 0;
 
-    // SOLUTION 4: Enhanced state tracking for single configuration per session
     this.configurationAttempts = 0;
     this.lastConfigurationHash = null; // To detect configuration changes
     this.sessionId = Date.now(); // Unique session identifier
@@ -198,14 +197,13 @@ class PortState {
   }
 }
 
-// CHANGE 2: Helper function to check return values
 function checkReturnCode(returnCode, operation) {
   if (returnCode !== RETURN_CODES.RETURN_OK) {
     throw new Error(`${operation} failed with code: ${returnCode}`);
   }
 }
 
-// This configures ALL ports during master initialization, not during status checks
+// configures ALL ports during master initialization, not during status checks
 async function initializeMaster(handle, deviceName, maxPorts = 2) {
   console.log(`Initializing IO-Link Master: ${deviceName}`);
 
@@ -213,7 +211,6 @@ async function initializeMaster(handle, deviceName, maxPorts = 2) {
   const masterState = new MasterState(handle, deviceName);
   masterStates.set(handle, masterState);
 
-  // CHANGE 4: Configure all available ports during initialization
   console.log(`Configuring ${maxPorts} ports for IO-Link operation...`);
 
   for (let port = 1; port <= maxPorts; port++) {
@@ -222,7 +219,6 @@ async function initializeMaster(handle, deviceName, maxPorts = 2) {
     try {
       const configSuccess = await configurePortForIOLink(handle, port);
       if (configSuccess) {
-        // SOLUTION 4: Use enhanced state tracking
         portState.markConfigured(
           PORT_MODES.SM_MODE_IOLINK_OPERATE,
           0x11,
@@ -243,25 +239,23 @@ async function initializeMaster(handle, deviceName, maxPorts = 2) {
 
   masterState.initialized = true;
 
-  // CHANGE 5: Enhanced port stabilization timing based on TMG documentation
   console.log(
     "Waiting for port stabilization (IO-Link timing requirements)..."
   );
 
   // TMG Documentation recommends longer stabilization time for device detection
-  const stabilizationTime = 5000;
-  console.log(`Stabilization period: ${stabilizationTime}ms)`);
+  console.log(`Stabilization period: 5000 ms)`);
 
   const start = Date.now();
-  while (Date.now() - start < stabilizationTime) {
+  while (Date.now() - start < 5000) {
     // Extended stabilization period for better device detection
   }
 
   // Additional device detection wait - some IO-Link devices need extra time
   console.log("Additional device detection wait...");
   const detectionStart = Date.now();
-  while (Date.now() - detectionStart < 20000) {
-    // Extra 2 seconds for slow-responding devices
+  while (Date.now() - detectionStart < 7000) {
+    // Extra 7 seconds for slow-responding devices
   }
 
   console.log(
@@ -272,12 +266,12 @@ async function initializeMaster(handle, deviceName, maxPorts = 2) {
   return masterState;
 }
 
-// CHANGE 6: Pure port configuration function (called only during initialization)
+// Pure port configuration function (called only during initialization)
 async function configurePortForIOLink(handle, port) {
   try {
     const zeroBasedPort = port - 1; // Convert to 0-based indexing for DLL
 
-    // SOLUTION 2: Check current state before configuring
+    // current state checked before configuring
     console.log(`Port ${port}: Checking current configuration state...`);
 
     // First, get current port mode and configuration
@@ -340,7 +334,7 @@ async function configurePortForIOLink(handle, port) {
     // Create IO-Link port configuration
     const portConfig = new TPortConfiguration();
 
-    // CHANGE 7: Configuration values according to IO-Link specification
+    // Configuration values according to IO-Link specification
     portConfig.PortModeDetails = 0; // Free running mode
     portConfig.TargetMode = PORT_MODES.SM_MODE_IOLINK_OPERATE; // Target: IO-Link operational
     portConfig.CRID = 0x11; // IO-Link Capability/Revision ID v1.1
@@ -354,11 +348,10 @@ async function configurePortForIOLink(handle, port) {
     portConfig.DeviceID[0] = 0; // No device restriction
     portConfig.DeviceID[1] = 0;
     portConfig.DeviceID[2] = 0;
-    // SerialNumber array defaults to zeros (no serial restriction)
     portConfig.InputLength = 32; // Maximum input data length
     portConfig.OutputLength = 32; // Maximum output data length
 
-    // SOLUTION 4: Check if configuration is actually needed before applying
+    // Check if configuration is actually needed before applying
     // This prevents redundant reconfigurations that can disrupt IO-Link state machine
     const masterState = masterStates.get(handle);
     if (masterState && masterState.ports.has(port)) {
@@ -403,7 +396,7 @@ async function configurePortForIOLink(handle, port) {
   }
 }
 
-// CHANGE 8: Status checking function (NO configuration, just status)
+// Status checking function (NO configuration, just status)
 // This follows the IO-Link state machine - configuration is separate from monitoring
 function checkPortStatus(handle, port) {
   try {
@@ -467,7 +460,7 @@ function checkPortStatus(handle, port) {
       lastChecked: portState.lastStatusCheck,
     };
 
-    // CHANGE 9: Update device info in port state if device is connected
+    // device info in port state updated if device is connected
     if (status.connected && !portState.deviceInfo) {
       portState.deviceInfo = parseDeviceInfoFromDPP(
         status.directParameterPage,
@@ -489,7 +482,7 @@ function checkPortStatus(handle, port) {
   }
 }
 
-// CHANGE 10: Parse device information from Direct Parameter Page according to IO-Link spec
+// device information from Direct Parameter Page parsed according to IO-Link spec
 function parseDeviceInfoFromDPP(dpp, port) {
   try {
     if (!dpp || dpp.length < 16) {
@@ -524,97 +517,6 @@ function parseDeviceInfoFromDPP(dpp, port) {
   }
 }
 
-/* // Synchronous version of the status check with retries
-function waitForInitializationSync(
-  handle,
-  port,
-  zeroBasedPort,
-  maxRetries = 3
-) {
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    console.log(`Port ${port}: Status check attempt ${attempt}/${maxRetries}`);
-
-    try {
-      const infoEx = new TInfoEx();
-      const result = iolinkDll.IOL_GetModeEx(
-        handle,
-        zeroBasedPort,
-        infoEx.ref(),
-        false
-      );
-
-      console.log(`Port ${port}: IOL_GetModeEx result = ${result}`);
-      console.log(
-        `Port ${port}: SensorStatus = 0x${infoEx.SensorStatus.toString(16)}`
-      );
-      console.log(`Port ${port}: ActualMode = ${infoEx.ActualMode}`);
-
-      const isConnected =
-        (infoEx.SensorStatus & SENSOR_STATUS.BIT_CONNECTED) !== 0;
-      const isPreoperate =
-        (infoEx.SensorStatus & SENSOR_STATUS.BIT_PREOPERATE) !== 0;
-      const isSensorStateKnown =
-        (infoEx.SensorStatus & SENSOR_STATUS.BIT_SENSORSTATEKNOWN) !== 0;
-
-      // If device is found, return immediately
-      if (isConnected || isPreoperate) {
-        const connectionState = isConnected ? "OPERATE" : "PREOPERATE";
-        console.log(`Port ${port}: Device found in ${connectionState} mode!`);
-
-        return {
-          port: port,
-          connected: true,
-          mode: connectionState,
-          actualMode: infoEx.ActualMode,
-          sensorStatus: infoEx.SensorStatus,
-          baudrate: infoEx.CurrentBaudrate,
-          directParameterPage: Buffer.from(infoEx.DirectParameterPage).slice(
-            0,
-            16
-          ),
-          attempts: attempt,
-        };
-      }
-
-      // If this is the last attempt, return the final state
-      if (attempt === maxRetries) {
-        console.log(
-          `Port ${port}: No device detected after ${maxRetries} attempts`
-        );
-        return {
-          port: port,
-          connected: false,
-          mode: "DISCONNECTED",
-          actualMode: infoEx.ActualMode,
-          sensorStatus: infoEx.SensorStatus,
-          attempts: attempt,
-        };
-      }
-
-      // Wait before next attempt (simple blocking wait)
-      console.log(`Port ${port}: Waiting 2 seconds before next attempt...`);
-      const start = Date;
-      while (Date.now() - start < 2000) {
-        // Blocking wait
-      }
-    } catch (error) {
-      console.error(
-        `Port ${port}: Error in attempt ${attempt}:`,
-        error.message
-      );
-      if (attempt === maxRetries) {
-        return {
-          port: port,
-          connected: false,
-          mode: "ERROR",
-          error: error.message,
-          attempts: attempt,
-        };
-      }
-    }
-  }
-} */
-
 // Get connected IO-Link Device/Sensor information from a specific port
 function getConnectedDeviceInfo(handle, port) {
   try {
@@ -645,7 +547,7 @@ function getConnectedDeviceInfo(handle, port) {
     const pdInLength = dpp[9]; // Byte 9: Process Data Input Length
     const pdOutLength = dpp[10]; // Byte 10: Process Data Output Length
 
-    // Try to read additional parameters like serial number (Index 21)
+    // Try reading additional parameters like serial number (Index 21)
     let serialNumber = "Unknown";
     try {
       const serialParam = new TParameter();
@@ -695,7 +597,7 @@ function getConnectedDeviceInfo(handle, port) {
   }
 }
 
-// CHANGE 11: Scan master ports (uses status checking, not configuration)
+// Scan master ports (uses status checking, not configuration)
 function scanMasterPorts(handle) {
   console.log("Scanning configured ports for connected devices...");
 
@@ -767,7 +669,7 @@ async function discoverAllDevices() {
       handle = connect(master.name);
       console.log(`Connected to IO-Link Master: ${master.name}`);
 
-      // CHANGE 13: Initialize master (configures all ports once)
+      // Initialize master (configures all ports once)
       const masterState = await initializeMaster(handle, master.name);
 
       // Scan for connected devices (no configuration, just status checking)
@@ -822,7 +724,7 @@ function getVendorName(vendorId) {
   };
   return vendors[vendorId] || `Vendor_${vendorId.toString(16).toUpperCase()}`;
 }
-
+ 
 function getDeviceName(vendorId, deviceId) {
   return `Device_${deviceId.toString(16).toUpperCase()}`;
 }
@@ -955,7 +857,6 @@ function disconnectAllMasters(topology) {
   });
 }
 
-// Discover masters (renamed for clarity)
 function discoverMasters() {
   const maxDevices = 5;
   console.log("Searching for IO-Link Master devices...");
@@ -1012,7 +913,7 @@ function discoverMasters() {
   }
 }
 
-// SOLUTION 3: Master reset function to ensure clean state
+// Master reset function to ensure clean state
 function resetMaster(handle) {
   console.log(`Resetting master state for handle ${handle}...`);
 
@@ -1061,7 +962,7 @@ function connect(deviceName) {
     throw new Error(`Failed to connect to device: ${deviceName}`);
   }
 
-  // SOLUTION 3: Reset master to clean state before use
+  // Reset master to clean state before use
   resetMaster(handle);
 
   return handle;
@@ -1076,7 +977,7 @@ function disconnect(handle) {
       return;
     }
 
-    // SOLUTION 1: Clear port configurations before destroying handle (like TMG sample)
+    // Cleared port configurations before destroying handle (like TMG sample)
     const masterState = masterStates.get(handle);
     if (masterState && masterState.ports) {
       console.log(
@@ -1139,7 +1040,7 @@ function disconnect(handle) {
   }
 }
 
-// Process data and BLOB functions (unchanged but updated to require initialized master)
+// Process data and BLOB functions
 function readProcessData(handle, port, maxLength = 32) {
   const masterState = masterStates.get(handle);
   if (!masterState || !masterState.initialized) {
@@ -1276,10 +1177,8 @@ module.exports = {
   scanMasterPorts, // Step 5: Scan for connected devices
   disconnect, // Step 6: Clean disconnect
 
-  // Optimization helpers
   validatePortConnection, // One-time connection validation for efficient operations
 
-  // Legacy compatibility (but updated to require initialization)
   discoverAllDevices,
   disconnectAllMasters, // Combined discovery and initialization
   readProcessData,
@@ -1287,12 +1186,16 @@ module.exports = {
   readBlob,
   writeBlob,
   streamData,
+  readDeviceProcessData,
+  writeDeviceProcessData,
+  readDeviceParameter,
+  streamDeviceData,
 
   // Constants
   RETURN_CODES,
   PORT_MODES,
   SENSOR_STATUS,
 
-  // State access (for debugging)
+  // State access
   getMasterState: (handle) => masterStates.get(handle),
 };
