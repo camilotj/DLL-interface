@@ -171,6 +171,30 @@ class PortState {
     this.deviceInfo = null;
     this.lastStatusCheck = 0;
     this.configurationTimestamp = 0;
+
+    // SOLUTION 4: Enhanced state tracking for single configuration per session
+    this.configurationAttempts = 0;
+    this.lastConfigurationHash = null; // To detect configuration changes
+    this.sessionId = Date.now(); // Unique session identifier
+  }
+
+  // Check if this port needs reconfiguration
+  needsReconfiguration(targetMode, crid, inspectionLevel) {
+    const configHash = `${targetMode}-${crid}-${inspectionLevel}`;
+    return (
+      !this.configured ||
+      this.lastConfigurationHash !== configHash ||
+      this.configurationAttempts === 0
+    );
+  }
+
+  // Mark configuration as applied
+  markConfigured(targetMode, crid, inspectionLevel) {
+    this.configured = true;
+    this.targetMode = targetMode;
+    this.configurationTimestamp = Date.now();
+    this.configurationAttempts++;
+    this.lastConfigurationHash = `${targetMode}-${crid}-${inspectionLevel}`;
   }
 }
 
@@ -182,7 +206,7 @@ function checkReturnCode(returnCode, operation) {
 }
 
 // This configures ALL ports during master initialization, not during status checks
-function initializeMaster(handle, deviceName, maxPorts = 2) {
+async function initializeMaster(handle, deviceName, maxPorts = 2) {
   console.log(`Initializing IO-Link Master: ${deviceName}`);
 
   // Create master state
@@ -196,11 +220,14 @@ function initializeMaster(handle, deviceName, maxPorts = 2) {
     const portState = new PortState(port);
 
     try {
-      const configSuccess = configurePortForIOLink(handle, port);
+      const configSuccess = await configurePortForIOLink(handle, port);
       if (configSuccess) {
-        portState.configured = true;
-        portState.targetMode = PORT_MODES.SM_MODE_IOLINK_OPERATE;
-        portState.configurationTimestamp = Date.now();
+        // SOLUTION 4: Use enhanced state tracking
+        portState.markConfigured(
+          PORT_MODES.SM_MODE_IOLINK_OPERATE,
+          0x11,
+          VALIDATION_MODES.SM_VALIDATION_MODE_NONE
+        );
         console.log(`Port ${port}: Configured for IO-Link operation`);
       } else {
         console.log(
@@ -246,9 +273,47 @@ function initializeMaster(handle, deviceName, maxPorts = 2) {
 }
 
 // CHANGE 6: Pure port configuration function (called only during initialization)
-function configurePortForIOLink(handle, port) {
+async function configurePortForIOLink(handle, port) {
   try {
     const zeroBasedPort = port - 1; // Convert to 0-based indexing for DLL
+
+    // SOLUTION 2: Check current state before configuring
+    console.log(`Port ${port}: Checking current configuration state...`);
+
+    // First, get current port mode and configuration
+    const currentInfo = new TInfoEx();
+    const currentModeResult = iolinkDll.IOL_GetModeEx(
+      handle,
+      zeroBasedPort,
+      currentInfo.ref(),
+      false
+    );
+
+    if (currentModeResult === RETURN_CODES.RETURN_OK) {
+      console.log(
+        `Port ${port}: Current mode = ${currentInfo.ActualMode}, target mode = ${PORT_MODES.SM_MODE_IOLINK_OPERATE}`
+      );
+
+      // If already in the desired mode, skip reconfiguration
+      if (currentInfo.ActualMode === PORT_MODES.SM_MODE_IOLINK_OPERATE) {
+        console.log(
+          `Port ${port}: Already in IO-Link operate mode, skipping reconfiguration`
+        );
+        return true;
+      }
+
+      // If in a transitional state, wait a bit before reconfiguring
+      if (
+        currentInfo.ActualMode === PORT_MODES.SM_MODE_IOLINK_STARTUP ||
+        currentInfo.ActualMode === PORT_MODES.SM_MODE_IOLINK_PREOPERATE
+      ) {
+        console.log(
+          `Port ${port}: In transitional mode ${currentInfo.ActualMode}, waiting before reconfiguration...`
+        );
+        // Wait for transition to complete
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+      }
+    }
 
     // Verify port exists by attempting to read current configuration
     try {
@@ -261,6 +326,13 @@ function configurePortForIOLink(handle, port) {
       if (checkResult === RETURN_CODES.RETURN_WRONG_PARAMETER) {
         return false; // Port does not exist
       }
+
+      // Log current configuration for debugging
+      console.log(
+        `Port ${port}: Current config - TargetMode=${
+          currentConfig.TargetMode
+        }, CRID=0x${currentConfig.CRID.toString(16)}`
+      );
     } catch (e) {
       return false; // Port validation failed
     }
@@ -285,6 +357,25 @@ function configurePortForIOLink(handle, port) {
     // SerialNumber array defaults to zeros (no serial restriction)
     portConfig.InputLength = 32; // Maximum input data length
     portConfig.OutputLength = 32; // Maximum output data length
+
+    // SOLUTION 4: Check if configuration is actually needed before applying
+    // This prevents redundant reconfigurations that can disrupt IO-Link state machine
+    const masterState = masterStates.get(handle);
+    if (masterState && masterState.ports.has(port)) {
+      const existingPortState = masterState.ports.get(port);
+      if (
+        !existingPortState.needsReconfiguration(
+          portConfig.TargetMode,
+          portConfig.CRID,
+          portConfig.InspectionLevel
+        )
+      ) {
+        console.log(
+          `Port ${port}: Configuration unchanged, skipping reconfiguration to prevent state machine disruption`
+        );
+        return true;
+      }
+    }
 
     console.log(
       `Port ${port}: Setting config - CRID=0x${portConfig.CRID.toString(
@@ -650,7 +741,7 @@ function scanMasterPorts(handle) {
   return connectedDevices;
 }
 
-function discoverAllDevices() {
+async function discoverAllDevices() {
   console.log("=== IO-Link Discovery===");
 
   // Step 1: Discover IO-Link Masters
@@ -665,7 +756,7 @@ function discoverAllDevices() {
   // Step 2: Initialize each master and scan for devices
   const topology = { masters: [] };
 
-  masters.forEach((master, index) => {
+  for (const [index, master] of masters.entries()) {
     console.log(
       `\n--- Initializing IO-Link Master ${index + 1}: ${master.name} ---`
     );
@@ -677,7 +768,7 @@ function discoverAllDevices() {
       console.log(`Connected to IO-Link Master: ${master.name}`);
 
       // CHANGE 13: Initialize master (configures all ports once)
-      const masterState = initializeMaster(handle, master.name);
+      const masterState = await initializeMaster(handle, master.name);
 
       // Scan for connected devices (no configuration, just status checking)
       const connectedDevices = scanMasterPorts(handle);
@@ -704,7 +795,7 @@ function discoverAllDevices() {
         error: error.message,
       });
     }
-  });
+  }
 
   const totalDevices = topology.masters.reduce(
     (sum, master) => sum + master.totalDevices,
@@ -921,12 +1012,58 @@ function discoverMasters() {
   }
 }
 
+// SOLUTION 3: Master reset function to ensure clean state
+function resetMaster(handle) {
+  console.log(`Resetting master state for handle ${handle}...`);
+
+  try {
+    // Clear all port configurations first
+    for (let port = 0; port < 2; port++) {
+      // 0-based for DLL
+      try {
+        const clearConfig = new TPortConfiguration();
+        // Set all fields to 0 (like memset in TMG sample)
+        clearConfig.PortModeDetails = 0;
+        clearConfig.TargetMode = 0;
+        clearConfig.CRID = 0;
+        clearConfig.DSConfigure = 0;
+        clearConfig.Synchronisation = 0;
+        clearConfig.FunctionID[0] = 0;
+        clearConfig.FunctionID[1] = 0;
+        clearConfig.InspectionLevel = 0;
+        clearConfig.InputLength = 0;
+        clearConfig.OutputLength = 0;
+
+        const clearResult = iolinkDll.IOL_SetPortConfig(
+          handle,
+          port,
+          clearConfig.ref()
+        );
+        console.log(`Port ${port + 1}: Reset result = ${clearResult}`);
+      } catch (portError) {
+        console.log(`Port ${port + 1}: Reset failed - ${portError.message}`);
+      }
+    }
+
+    // Wait for reset to take effect
+    console.log(`Master reset complete, waiting for stabilization...`);
+    return true;
+  } catch (error) {
+    console.error(`Master reset failed: ${error.message}`);
+    return false;
+  }
+}
+
 // Connect to device
 function connect(deviceName) {
   const handle = iolinkDll.IOL_Create(deviceName);
   if (handle <= 0) {
     throw new Error(`Failed to connect to device: ${deviceName}`);
   }
+
+  // SOLUTION 3: Reset master to clean state before use
+  resetMaster(handle);
+
   return handle;
 }
 
@@ -937,6 +1074,55 @@ function disconnect(handle) {
     if (!handle || handle <= 0) {
       console.log(`Skipping disconnect - invalid handle: ${handle}`);
       return;
+    }
+
+    // SOLUTION 1: Clear port configurations before destroying handle (like TMG sample)
+    const masterState = masterStates.get(handle);
+    if (masterState && masterState.ports) {
+      console.log(
+        `Clearing port configurations for master handle ${handle}...`
+      );
+
+      for (const [portNumber, portState] of masterState.ports) {
+        if (portState.configured) {
+          try {
+            console.log(`Clearing configuration for port ${portNumber}...`);
+
+            // Create empty port configuration (like TMG sample)
+            const clearConfig = new TPortConfiguration();
+            // memset(&PortConfig,0,sizeof(PortConfig)) equivalent
+            clearConfig.PortModeDetails = 0;
+            clearConfig.TargetMode = 0;
+            clearConfig.CRID = 0;
+            clearConfig.DSConfigure = 0;
+            clearConfig.Synchronisation = 0;
+            clearConfig.FunctionID[0] = 0;
+            clearConfig.FunctionID[1] = 0;
+            clearConfig.InspectionLevel = 0;
+            clearConfig.InputLength = 0;
+            clearConfig.OutputLength = 0;
+
+            const clearResult = iolinkDll.IOL_SetPortConfig(
+              handle,
+              portNumber - 1,
+              clearConfig.ref()
+            );
+            if (clearResult === RETURN_CODES.RETURN_OK) {
+              console.log(
+                `Port ${portNumber}: Configuration cleared successfully`
+              );
+            } else {
+              console.log(
+                `Port ${portNumber}: Failed to clear configuration (${clearResult})`
+              );
+            }
+          } catch (clearError) {
+            console.log(
+              `Port ${portNumber}: Error clearing configuration - ${clearError.message}`
+            );
+          }
+        }
+      }
     }
 
     masterStates.delete(handle);

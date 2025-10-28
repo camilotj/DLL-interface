@@ -5,7 +5,7 @@ async function main() {
     console.log("Starting IO-Link Discovery...\n");
 
     // Use the new enhanced discovery function
-    const topology = iolink.discoverAllDevices();
+    const topology = await iolink.discoverAllDevices();
 
     if (topology.masters.length === 0) {
       console.log("No IO-Link Masters found");
