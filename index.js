@@ -1,5 +1,3 @@
-// Main appplication file: entry point (step 4 from the previous response). It uses the module from iolink-interface.js to run the example.
-
 const iolink = require("./iolink-interface");
 
 async function main() {
@@ -31,7 +29,7 @@ async function main() {
             `    Port ${device.port}: ${device.vendorName} ${device.deviceName}`
           );
           console.log(
-            `      Vendor ID: ${device.vendorId}, Device ID: ${device.deviceId}`
+            `      Vendor ID: ${device.svendorId}, Device ID: ${device.deviceId}`
           );
           console.log(`      Serial: ${device.serialNumber}`);
           console.log(
@@ -99,12 +97,12 @@ async function main() {
             paramError.message
           );
         }
-
+        /*
         // Start streaming data from the specific IO-Link Device/Sensor
         console.log(
           `\n Starting data stream from IO-Link Device/Sensor on port ${device.port}...`
         );
-        const stopStreaming = iolink.streamDeviceData(
+                const stopStreaming = iolink.streamDeviceData(
           handle,
           device.port,
           1000,
@@ -121,10 +119,10 @@ async function main() {
               )} (${data.timestamp.toISOString()})`
             );
           }
-        );
+        ); */
 
         // Stop streaming after 10 seconds
-        setTimeout(() => {
+        /*     setTimeout(() => {
           stopStreaming();
           console.log("\n  Stopped streaming");
 
@@ -132,7 +130,7 @@ async function main() {
           iolink.disconnectAllMasters(topology);
           console.log("Disconnected from all IO-Link Masters");
           console.log("\n Demo completed successfully!");
-        }, 10000);
+        }, 10000); */
       } catch (deviceError) {
         console.error(
           ` Error working with IO-Link Device/Sensor on port ${device.port}:`,
