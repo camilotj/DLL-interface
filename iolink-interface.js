@@ -143,7 +143,13 @@ const SENSOR_STATUS = {
   BIT_SENSORSTATEKNOWN: 0x80, // Sensor state is known
 };
 
-// CHANGE 1: Add IO-Link Master state tracking according to IEC 61131-9
+// Validation modes (from TMGIOLUSBIF20.h)
+const VALIDATION_MODES = {
+  SM_VALIDATION_MODE_NONE: 0, // No validation, each combination of device and vendor id is allowed
+  SM_VALIDATION_MODE_COMPATIBLE: 1, // Device and vendor ID will be checked
+  SM_VALIDATION_MODE_IDENTICAL: 2, // Device and vendor ID and the serial number will be checked
+};
+
 // Each master maintains its own state and port configurations
 const masterStates = new Map(); // key: handle, value: MasterState
 
@@ -175,12 +181,9 @@ function checkReturnCode(returnCode, operation) {
   }
 }
 
-// CHANGE 3: One-time Master initialization according to IEC 61131-9
 // This configures ALL ports during master initialization, not during status checks
 function initializeMaster(handle, deviceName, maxPorts = 2) {
-  console.log(
-    `Initializing IO-Link Master: ${deviceName} according to IEC 61131-9`
-  );
+  console.log(`Initializing IO-Link Master: ${deviceName}`);
 
   // Create master state
   const masterState = new MasterState(handle, deviceName);
@@ -213,16 +216,32 @@ function initializeMaster(handle, deviceName, maxPorts = 2) {
 
   masterState.initialized = true;
 
-  // CHANGE 5: Wait for ports to stabilize after configuration (per IO-Link timing requirements)
+  // CHANGE 5: Enhanced port stabilization timing based on TMG documentation
   console.log(
     "Waiting for port stabilization (IO-Link timing requirements)..."
   );
+
+  // TMG Documentation recommends longer stabilization time for device detection
+  const stabilizationTime = 5000;
+  console.log(`Stabilization period: ${stabilizationTime}ms)`);
+
   const start = Date.now();
-  while (Date.now() - start < 3000) {
-    // 3 second stabilization period as per IO-Link specification
+  while (Date.now() - start < stabilizationTime) {
+    // Extended stabilization period for better device detection
   }
 
-  console.log(`Master ${deviceName} initialization complete`);
+  // Additional device detection wait - some IO-Link devices need extra time
+  console.log("Additional device detection wait...");
+  const detectionStart = Date.now();
+  while (Date.now() - detectionStart < 20000) {
+    // Extra 2 seconds for slow-responding devices
+  }
+
+  console.log(
+    `Master ${deviceName} initialization complete (total wait: ${
+      Date.now() - start
+    }ms)`
+  );
   return masterState;
 }
 
@@ -246,7 +265,7 @@ function configurePortForIOLink(handle, port) {
       return false; // Port validation failed
     }
 
-    // Create IO-Link port configuration according to IEC 61131-9
+    // Create IO-Link port configuration
     const portConfig = new TPortConfiguration();
 
     // CHANGE 7: Configuration values according to IO-Link specification
@@ -257,7 +276,7 @@ function configurePortForIOLink(handle, port) {
     portConfig.Synchronisation = 0; // Asynchronous operation
     portConfig.FunctionID[0] = 0; // No specific function
     portConfig.FunctionID[1] = 0;
-    portConfig.InspectionLevel = 0; // No device validation (accept any)
+    portConfig.InspectionLevel = VALIDATION_MODES.SM_VALIDATION_MODE_NONE; // Use proper constant for no validation
     portConfig.VendorID[0] = 0; // No vendor restriction
     portConfig.VendorID[1] = 0;
     portConfig.DeviceID[0] = 0; // No device restriction
@@ -267,10 +286,24 @@ function configurePortForIOLink(handle, port) {
     portConfig.InputLength = 32; // Maximum input data length
     portConfig.OutputLength = 32; // Maximum output data length
 
+    console.log(
+      `Port ${port}: Setting config - CRID=0x${portConfig.CRID.toString(
+        16
+      )}, TargetMode=${portConfig.TargetMode}, InspectionLevel=${
+        portConfig.InspectionLevel
+      }`
+    );
+
     const result = iolinkDll.IOL_SetPortConfig(
       handle,
       zeroBasedPort,
       portConfig.ref()
+    );
+
+    console.log(
+      `Port ${port}: IOL_SetPortConfig result = ${result} (${
+        result === RETURN_CODES.RETURN_OK ? "SUCCESS" : "FAILED"
+      })`
     );
     return result === RETURN_CODES.RETURN_OK;
   } catch (error) {
@@ -400,7 +433,7 @@ function parseDeviceInfoFromDPP(dpp, port) {
   }
 }
 
-// Synchronous version of the status check with retries
+/* // Synchronous version of the status check with retries
 function waitForInitializationSync(
   handle,
   port,
@@ -469,7 +502,7 @@ function waitForInitializationSync(
 
       // Wait before next attempt (simple blocking wait)
       console.log(`Port ${port}: Waiting 2 seconds before next attempt...`);
-      const start = Date.now();
+      const start = Date;
       while (Date.now() - start < 2000) {
         // Blocking wait
       }
@@ -489,7 +522,7 @@ function waitForInitializationSync(
       }
     }
   }
-}
+} */
 
 // Get connected IO-Link Device/Sensor information from a specific port
 function getConnectedDeviceInfo(handle, port) {
@@ -684,7 +717,6 @@ function discoverAllDevices() {
   return topology;
 }
 
-// Helper functions (unchanged but added for completeness)
 function getVendorName(vendorId) {
   const vendors = {
     0x0001: "SICK AG",
@@ -704,24 +736,37 @@ function getDeviceName(vendorId, deviceId) {
   return `Device_${deviceId.toString(16).toUpperCase()}`;
 }
 
-// Read process data from specific IO-Link Device/Sensor on given port
-function readDeviceProcessData(handle, port) {
-  const portStatus = checkPortStatus(handle, port);
-  if (!portStatus.connected) {
+//Connection validation helper
+function validatePortConnection(handle, port) {
+  const masterState = masterStates.get(handle);
+  if (!masterState || !masterState.initialized) {
+    throw new Error("Master not initialized. Call initializeMaster() first.");
+  }
+
+  const portState = masterState.ports.get(port);
+  if (!portState || !portState.configured) {
+    throw new Error(`Port ${port} not configured during master initialization`);
+  }
+
+  // Only check actual connection status when really needed
+  const status = checkPortStatus(handle, port);
+  if (!status.connected) {
     throw new Error(`No IO-Link Device/Sensor connected to port ${port}`);
   }
 
-  return readProcessData(handle, port); // Use existing function
+  return status;
+}
+
+// Read process data from specific IO-Link Device/Sensor on given port
+function readDeviceProcessData(handle, port) {
+  validatePortConnection(handle, port);
+  return readProcessData(handle, port); // Direct call without redundant status check
 }
 
 // Write process data to specific IO-Link Device/Sensor on given port
 function writeDeviceProcessData(handle, port, data) {
-  const portStatus = checkPortStatus(handle, port);
-  if (!portStatus.connected) {
-    throw new Error(`No IO-Link Device/Sensor connected to port ${port}`);
-  }
-
-  return writeProcessData(handle, port, data); // Use existing function
+  validatePortConnection(handle, port);
+  return writeProcessData(handle, port, data); // Direct call without redundant status check
 }
 
 // Read parameter from specific IO-Link Device/Sensor
@@ -761,12 +806,7 @@ function readDeviceParameter(handle, port, index, subIndex = 0) {
 
 // Enhanced streaming for specific IO-Link Device/Sensor
 function streamDeviceData(handle, port, interval, callback) {
-  // First verify device is connected
-  const portStatus = checkPortStatus(handle, port);
-  if (!portStatus.connected) {
-    callback(new Error(`No IO-Link Device/Sensor connected to port ${port}`));
-    return () => {}; // Return empty stop function
-  }
+  const connectionStatus = validatePortConnection(handle, port);
 
   const deviceInfo = getConnectedDeviceInfo(handle, port);
   console.log(
@@ -780,7 +820,8 @@ function streamDeviceData(handle, port, interval, callback) {
       return;
     }
     try {
-      const data = readDeviceProcessData(handle, port);
+      // OPTIMIZATION: Direct data read without redundant status checks
+      const data = readProcessData(handle, port);
       callback(null, {
         ...data,
         port: port,
@@ -805,7 +846,7 @@ function streamDeviceData(handle, port, interval, callback) {
 function disconnectAllMasters(topology) {
   console.log("Disconnecting from all IO-Link Masters...");
   topology.masters.forEach((master) => {
-    if (master.handle) {
+    if (master.handle && master.handle > 0) {
       try {
         disconnect(master.handle);
         console.log(`Disconnected from IO-Link Master: ${master.name}`);
@@ -815,6 +856,10 @@ function disconnectAllMasters(topology) {
           error.message
         );
       }
+    } else {
+      console.log(
+        `Skipping ${master.name} - no valid connection (handle: ${master.handle})`
+      );
     }
   });
 }
@@ -885,10 +930,15 @@ function connect(deviceName) {
   return handle;
 }
 
-// CHANGE 14: Clean disconnect function that properly cleans up master states
+// Clean disconnect function that properly cleans up master states
 function disconnect(handle) {
   try {
     // Clean up master state
+    if (!handle || handle <= 0) {
+      console.log(`Skipping disconnect - invalid handle: ${handle}`);
+      return;
+    }
+
     masterStates.delete(handle);
 
     // Disconnect from DLL
@@ -897,7 +947,9 @@ function disconnect(handle) {
   } catch (error) {
     console.error(`Error during disconnect:`, error.message);
     // Still remove from tracking even if DLL disconnect fails
-    masterStates.delete(handle);
+    if (handle && handle > 0) {
+      masterStates.delete(handle);
+    }
   }
 }
 
@@ -1030,15 +1082,16 @@ function streamData(handle, port, interval, callback) {
   };
 }
 
-// CHANGE 15: Export updated API following IEC 61131-9 patterns
 module.exports = {
-  // Core functions following IEC 61131-9
   discoverMasters, // Step 1: Discover available masters
   connect, // Step 2: Connect to a master
   initializeMaster, // Step 3: Initialize master (configure all ports)
   checkPortStatus, // Step 4: Monitor port status (no config)
   scanMasterPorts, // Step 5: Scan for connected devices
   disconnect, // Step 6: Clean disconnect
+
+  // Optimization helpers
+  validatePortConnection, // One-time connection validation for efficient operations
 
   // Legacy compatibility (but updated to require initialization)
   discoverAllDevices,
