@@ -1,11 +1,18 @@
-// Contains the DLL loading, structure definitions, and wrapper functions
+/**
+ * IO-Link Interface Library
+ * Provides complete IO-Link Master and Device communication functionality
+ * Following IEC 61131-9 specifications
+ */
 
 const ffi = require("ffi-napi");
 const ref = require("ref-napi");
 const StructType = require("ref-struct-napi");
 const ArrayType = require("ref-array-napi");
 
-// Define types
+// ============================================================================
+// TYPE DEFINITIONS
+// ============================================================================
+
 const BYTE = ref.types.uint8;
 const WORD = ref.types.uint16;
 const LONG = ref.types.int32;
@@ -14,7 +21,7 @@ const BYTE_PTR = ref.refType(BYTE);
 const DWORD_PTR = ref.refType(DWORD);
 const LONG_PTR = ref.refType(LONG);
 
-// Define TBLOBStatus structure (from TMGIOLBlob.h)
+// BLOB Status Structure (from TMGIOLBlob.h)
 const TBLOBStatus = StructType({
   executedState: BYTE,
   errorCode: BYTE,
@@ -25,14 +32,14 @@ const TBLOBStatus = StructType({
   nextState: BYTE,
 });
 
-// Define TDeviceIdentification structure (from TMGIOLUSBIF20.h)
+// Device Identification Structure (from TMGIOLUSBIF20.h)
 const TDeviceIdentification = StructType({
   Name: ArrayType(BYTE, 8),
   ProductCode: ArrayType(BYTE, 16),
   ViewName: ArrayType(BYTE, 100),
 });
 
-// Define TInfoEx structure for extended device info (from TMGIOLUSBIF20.h)
+// Extended Info Structure (from TMGIOLUSBIF20.h)
 const TInfoEx = StructType({
   COM: ArrayType(BYTE, 10),
   DirectParameterPage: ArrayType(BYTE, 16),
@@ -41,7 +48,7 @@ const TInfoEx = StructType({
   CurrentBaudrate: BYTE,
 });
 
-// Define TParameter structure for ISDU requests (from TMGIOLUSBIF20.h)
+// Parameter Structure for ISDU (from TMGIOLUSBIF20.h)
 const TParameter = StructType({
   Result: ArrayType(BYTE, 256),
   Index: WORD,
@@ -51,7 +58,7 @@ const TParameter = StructType({
   AdditionalCode: BYTE,
 });
 
-// Define TPortConfiguration structure (from TMGIOLUSBIF20.h)
+// Port Configuration Structure (from TMGIOLUSBIF20.h)
 const TPortConfiguration = StructType({
   PortModeDetails: BYTE,
   TargetMode: BYTE,
@@ -67,21 +74,35 @@ const TPortConfiguration = StructType({
   OutputLength: BYTE,
 });
 
-// Load the DLL (adjust path if needed)
+// ============================================================================
+// DLL LOADING
+// ============================================================================
+
 const iolinkDll = ffi.Library(
   __dirname +
     "/TMG_USB_IO-Link_Interface_V2_DLL/Sample_x64/Sample_C/SimpleApplication/TMGIOLUSBIF20_64.dll",
   {
+    // Core master functions
     IOL_GetUSBDevices: [LONG, [ref.refType(TDeviceIdentification), LONG]],
     IOL_Create: [LONG, [ref.types.CString]],
     IOL_Destroy: [LONG, [LONG]],
 
-    // Port and device discovery functions
+    // Port configuration and status
     IOL_GetModeEx: [LONG, [LONG, DWORD, ref.refType(TInfoEx), ref.types.bool]],
     IOL_GetSensorStatus: [LONG, [LONG, DWORD, ref.refType(DWORD)]],
     IOL_GetPortConfig: [LONG, [LONG, DWORD, ref.refType(TPortConfiguration)]],
     IOL_SetPortConfig: [LONG, [LONG, DWORD, ref.refType(TPortConfiguration)]],
+
+    // Parameter communication (ISDU)
     IOL_ReadReq: [LONG, [LONG, DWORD, ref.refType(TParameter)]],
+    IOL_WriteReq: [LONG, [LONG, DWORD, ref.refType(TParameter)]], // ADDED: Missing write function
+
+    // Process data communication
+    IOL_ReadInputs: [
+      LONG,
+      [LONG, DWORD, ref.refType(BYTE), ref.refType(DWORD), ref.refType(DWORD)],
+    ],
+    IOL_WriteOutputs: [LONG, [LONG, DWORD, ref.refType(BYTE), DWORD]],
 
     // BLOB functions
     BLOB_uploadBLOB: [
@@ -105,17 +126,13 @@ const iolinkDll = ffi.Library(
       LONG,
       [LONG, DWORD, ref.refType(LONG), ref.refType(TBLOBStatus)],
     ],
-
-    // Process data functions
-    IOL_ReadInputs: [
-      LONG,
-      [LONG, DWORD, ref.refType(BYTE), ref.refType(DWORD), ref.refType(DWORD)],
-    ],
-    IOL_WriteOutputs: [LONG, [LONG, DWORD, ref.refType(BYTE), DWORD]],
   }
 );
 
-// Return codes
+// ============================================================================
+// CONSTANTS
+// ============================================================================
+
 const RETURN_CODES = {
   RETURN_OK: 0,
   RETURN_INTERNAL_ERROR: -1,
@@ -124,7 +141,6 @@ const RETURN_CODES = {
   RETURN_WRONG_PARAMETER: -10,
 };
 
-// Port modes (from TMGIOLUSBIF20.h)
 const PORT_MODES = {
   SM_MODE_RESET: 0,
   SM_MODE_IOLINK_PREOP: 1,
@@ -133,24 +149,43 @@ const PORT_MODES = {
   SM_MODE_IOLINK_OPERATE: 12,
 };
 
-// Sensor status bits (from TMGIOLUSBIF20.h)
 const SENSOR_STATUS = {
-  BIT_CONNECTED: 0x01, // IO-Link Device/Sensor connected and in OPERATE
-  BIT_PREOPERATE: 0x02, // IO-Link Device/Sensor in PREOPERATE
-  BIT_WRONGSENSOR: 0x10, // Wrong IO-Link Device/Sensor connected
-  BIT_EVENTAVAILABLE: 0x04, // Events available
-  BIT_PDVALID: 0x08, // Process data valid
-  BIT_SENSORSTATEKNOWN: 0x80, // Sensor state is known
+  BIT_CONNECTED: 0x01,
+  BIT_PREOPERATE: 0x02,
+  BIT_WRONGSENSOR: 0x10,
+  BIT_EVENTAVAILABLE: 0x04,
+  BIT_PDVALID: 0x08,
+  BIT_SENSORSTATEKNOWN: 0x80,
 };
 
-// Validation modes (from TMGIOLUSBIF20.h)
 const VALIDATION_MODES = {
-  SM_VALIDATION_MODE_NONE: 0, // No validation, each combination of device and vendor id is allowed
-  SM_VALIDATION_MODE_COMPATIBLE: 1, // Device and vendor ID will be checked
-  SM_VALIDATION_MODE_IDENTICAL: 2, // Device and vendor ID and the serial number will be checked
+  SM_VALIDATION_MODE_NONE: 0,
+  SM_VALIDATION_MODE_COMPATIBLE: 1,
+  SM_VALIDATION_MODE_IDENTICAL: 2,
 };
 
-// Each master maintains its own state and port configurations
+// Standard IO-Link Parameter Indices
+const PARAMETER_INDEX = {
+  DIRECT_PARAMETER_PAGE: 0,
+  MIN_CYCLE_TIME: 2,
+  MSEQUENCE_CAPABILITY: 3,
+  VENDOR_NAME: 10,
+  VENDOR_TEXT: 11,
+  PRODUCT_NAME: 12,
+  PRODUCT_ID: 13,
+  PRODUCT_TEXT: 14,
+  SERIAL_NUMBER: 15,
+  HARDWARE_REVISION: 16,
+  FIRMWARE_REVISION: 17,
+  APPLICATION_SPECIFIC_NAME: 18,
+};
+
+// ============================================================================
+// STATE MANAGEMENT
+// ============================================================================
+
+// Global state tracking to prevent re-initialization
+const globalMasterRegistry = new Map(); // key: deviceName, value: configuration info
 const masterStates = new Map(); // key: handle, value: MasterState
 
 class MasterState {
@@ -159,6 +194,7 @@ class MasterState {
     this.deviceName = deviceName;
     this.ports = new Map(); // key: port number (1-based), value: PortState
     this.initialized = false;
+    this.configurationComplete = false;
   }
 }
 
@@ -171,13 +207,11 @@ class PortState {
     this.deviceInfo = null;
     this.lastStatusCheck = 0;
     this.configurationTimestamp = 0;
-
     this.configurationAttempts = 0;
-    this.lastConfigurationHash = null; // To detect configuration changes
-    this.sessionId = Date.now(); // Unique session identifier
+    this.lastConfigurationHash = null;
+    this.sessionId = Date.now();
   }
 
-  // Check if this port needs reconfiguration
   needsReconfiguration(targetMode, crid, inspectionLevel) {
     const configHash = `${targetMode}-${crid}-${inspectionLevel}`;
     return (
@@ -187,7 +221,6 @@ class PortState {
     );
   }
 
-  // Mark configuration as applied
   markConfigured(targetMode, crid, inspectionLevel) {
     this.configured = true;
     this.targetMode = targetMode;
@@ -197,20 +230,255 @@ class PortState {
   }
 }
 
+// ============================================================================
+// UTILITY FUNCTIONS
+// ============================================================================
+
 function checkReturnCode(returnCode, operation) {
   if (returnCode !== RETURN_CODES.RETURN_OK) {
     throw new Error(`${operation} failed with code: ${returnCode}`);
   }
 }
 
-// configures ALL ports during master initialization, not during status checks
+function getVendorName(vendorId) {
+  const vendors = {
+    0x0001: "SICK AG",
+    0x0002: "Balluff",
+    0x0003: "ifm electronic",
+    0x0004: "Turck",
+    0x0005: "Pepperl+Fuchs",
+    0x0006: "OMRON",
+    0x0007: "Baumer",
+    0x0008: "Banner Engineering",
+    0x0009: "Leuze electronic",
+    0x000a: "Vendor_A", // ADDED: For your specific device
+  };
+  return vendors[vendorId] || `Vendor_${vendorId.toString(16).toUpperCase()}`;
+}
+
+function getDeviceName(vendorId, deviceId) {
+  // Add specific device mappings here if known
+  const deviceMappings = {
+    "0x000A": {
+      "0x0A2B11": "Temperature Sensor",
+      // Add more device mappings as needed
+    },
+  };
+
+  const vendorKey = `0x${vendorId.toString(16).toUpperCase().padStart(4, "0")}`;
+  const deviceKey = `0x${deviceId.toString(16).toUpperCase().padStart(6, "0")}`;
+
+  if (deviceMappings[vendorKey] && deviceMappings[vendorKey][deviceKey]) {
+    return deviceMappings[vendorKey][deviceKey];
+  }
+
+  return `Device_${deviceId.toString(16).toUpperCase()}`;
+}
+
+function extractString(arrayField) {
+  try {
+    if (!arrayField) return "Unknown";
+    const buffer = Buffer.isBuffer(arrayField)
+      ? arrayField
+      : Buffer.from(arrayField);
+    let length = 0;
+    while (length < buffer.length && buffer[length] !== 0) length++;
+    return buffer.slice(0, length).toString("utf8").trim() || "Unknown";
+  } catch (e) {
+    return "Unknown";
+  }
+}
+
+// ============================================================================
+// MASTER DISCOVERY AND CONNECTION
+// ============================================================================
+
+function discoverMasters() {
+  const maxDevices = 5;
+  console.log("Searching for IO-Link Master devices...");
+
+  try {
+    const structSize = TDeviceIdentification.size;
+    const bufferSize = structSize * maxDevices;
+    const deviceBuffer = Buffer.alloc(bufferSize);
+
+    const numDevices = iolinkDll.IOL_GetUSBDevices(deviceBuffer, maxDevices);
+    console.log(`Found ${numDevices} devices`);
+
+    if (numDevices <= 0) {
+      return [];
+    }
+
+    const devices = [];
+    for (let i = 0; i < numDevices; i++) {
+      try {
+        const offset = i * structSize;
+        const deviceSlice = deviceBuffer.slice(offset, offset + structSize);
+        const device = ref.get(deviceSlice, 0, TDeviceIdentification);
+
+        if (!device) continue;
+
+        devices.push({
+          name: extractString(device.Name),
+          productCode: extractString(device.ProductCode),
+          viewName: extractString(device.ViewName),
+        });
+      } catch (err) {
+        console.error(`Error processing device ${i}:`, err.message);
+      }
+    }
+
+    return devices;
+  } catch (error) {
+    console.error("Error in discoverMasters:", error.message);
+    return [];
+  }
+}
+
+function connect(deviceName) {
+  const handle = iolinkDll.IOL_Create(deviceName);
+  if (handle <= 0) {
+    throw new Error(`Failed to connect to device: ${deviceName}`);
+  }
+
+  // CHANGED: Clean master reset on connection
+  resetMaster(handle);
+  return handle;
+}
+
+function disconnect(handle) {
+  try {
+    if (!handle || handle <= 0) {
+      console.log(`Skipping disconnect - invalid handle: ${handle}`);
+      return;
+    }
+
+    // CHANGED: Clean port configurations before destroying handle
+    const masterState = masterStates.get(handle);
+    if (masterState && masterState.ports) {
+      console.log(
+        `Clearing port configurations for master handle ${handle}...`
+      );
+
+      for (const [portNumber, portState] of masterState.ports) {
+        if (portState.configured) {
+          try {
+            const clearConfig = new TPortConfiguration();
+            // Clear all configuration (equivalent to memset)
+            Object.keys(clearConfig).forEach((key) => {
+              if (Array.isArray(clearConfig[key])) {
+                clearConfig[key].fill(0);
+              } else {
+                clearConfig[key] = 0;
+              }
+            });
+
+            const clearResult = iolinkDll.IOL_SetPortConfig(
+              handle,
+              portNumber - 1,
+              clearConfig.ref()
+            );
+
+            if (clearResult === RETURN_CODES.RETURN_OK) {
+              console.log(
+                `Port ${portNumber}: Configuration cleared successfully`
+              );
+            }
+          } catch (clearError) {
+            console.log(
+              `Port ${portNumber}: Error clearing configuration - ${clearError.message}`
+            );
+          }
+        }
+      }
+    }
+
+    masterStates.delete(handle);
+    const result = iolinkDll.IOL_Destroy(handle);
+    checkReturnCode(result, "Disconnect");
+  } catch (error) {
+    console.error(`Error during disconnect:`, error.message);
+    if (handle && handle > 0) {
+      masterStates.delete(handle);
+    }
+  }
+}
+
+function resetMaster(handle) {
+  console.log(`Resetting master state for handle ${handle}...`);
+
+  try {
+    // Clear all port configurations first
+    for (let port = 0; port < 2; port++) {
+      // 0-based for DLL
+      try {
+        const clearConfig = new TPortConfiguration();
+        // Set all fields to 0 (like memset in TMG sample)
+        Object.keys(clearConfig).forEach((key) => {
+          if (Array.isArray(clearConfig[key])) {
+            clearConfig[key].fill(0);
+          } else {
+            clearConfig[key] = 0;
+          }
+        });
+
+        const clearResult = iolinkDll.IOL_SetPortConfig(
+          handle,
+          port,
+          clearConfig.ref()
+        );
+        console.log(`Port ${port + 1}: Reset result = ${clearResult}`);
+      } catch (portError) {
+        console.log(`Port ${port + 1}: Reset failed - ${portError.message}`);
+      }
+    }
+
+    console.log(`Master reset complete, waiting for stabilization...`);
+    return true;
+  } catch (error) {
+    console.error(`Master reset failed: ${error.message}`);
+    return false;
+  }
+}
+
+// ============================================================================
+// MASTER INITIALIZATION
+// ============================================================================
+
 async function initializeMaster(handle, deviceName, maxPorts = 2) {
   console.log(`Initializing IO-Link Master: ${deviceName}`);
 
-  // Create master state
-  const masterState = new MasterState(handle, deviceName);
+  // CHANGED: Check if this master was already configured recently
+  const registryEntry = globalMasterRegistry.get(deviceName);
+  const wasRecentlyConfigured =
+    registryEntry && Date.now() - registryEntry.lastConfigTime < 120000; // Within last 2 minutes
+
+  let masterState = new MasterState(handle, deviceName);
   masterStates.set(handle, masterState);
 
+  if (wasRecentlyConfigured) {
+    console.log(
+      `Master ${deviceName} was recently configured, skipping port configuration...`
+    );
+
+    // Create port states but mark them as already configured
+    for (let port = 1; port <= maxPorts; port++) {
+      const portState = new PortState(port);
+      portState.configured = true;
+      portState.targetMode = PORT_MODES.SM_MODE_IOLINK_OPERATE;
+      portState.configurationTimestamp = registryEntry.lastConfigTime;
+      masterState.ports.set(port, portState);
+    }
+
+    masterState.initialized = true;
+    masterState.configurationComplete = true;
+    console.log(
+      `Master ${deviceName} initialization complete (using existing configuration)`
+    );
+    return masterState;
+  }
+
+  // First-time configuration
   console.log(`Configuring ${maxPorts} ports for IO-Link operation...`);
 
   for (let port = 1; port <= maxPorts; port++) {
@@ -237,44 +505,36 @@ async function initializeMaster(handle, deviceName, maxPorts = 2) {
     masterState.ports.set(port, portState);
   }
 
+  // CHANGED: Register this master as configured
+  globalMasterRegistry.set(deviceName, {
+    configured: true,
+    lastConfigTime: Date.now(),
+  });
+
   masterState.initialized = true;
+  masterState.configurationComplete = true;
 
   console.log(
     "Waiting for port stabilization (IO-Link timing requirements)..."
   );
+  console.log(`Stabilization period: 5000ms`);
 
-  // TMG Documentation recommends longer stabilization time for device detection
-  console.log(`Stabilization period: 5000 ms)`);
+  await new Promise((resolve) => setTimeout(resolve, 5000));
 
-  const start = Date.now();
-  while (Date.now() - start < 5000) {
-    // Extended stabilization period for better device detection
-  }
-
-  // Additional device detection wait - some IO-Link devices need extra time
   console.log("Additional device detection wait...");
-  const detectionStart = Date.now();
-  while (Date.now() - detectionStart < 7000) {
-    // Extra 7 seconds for slow-responding devices
-  }
+  await new Promise((resolve) => setTimeout(resolve, 7000));
 
-  console.log(
-    `Master ${deviceName} initialization complete (total wait: ${
-      Date.now() - start
-    }ms)`
-  );
+  console.log(`Master ${deviceName} initialization complete`);
   return masterState;
 }
 
-// Pure port configuration function (called only during initialization)
 async function configurePortForIOLink(handle, port) {
   try {
-    const zeroBasedPort = port - 1; // Convert to 0-based indexing for DLL
+    const zeroBasedPort = port - 1;
 
-    // current state checked before configuring
     console.log(`Port ${port}: Checking current configuration state...`);
 
-    // First, get current port mode and configuration
+    // Get current port mode and configuration
     const currentInfo = new TInfoEx();
     const currentModeResult = iolinkDll.IOL_GetModeEx(
       handle,
@@ -296,20 +556,16 @@ async function configurePortForIOLink(handle, port) {
         return true;
       }
 
-      // If in a transitional state, wait a bit before reconfiguring
-      if (
-        currentInfo.ActualMode === PORT_MODES.SM_MODE_IOLINK_STARTUP ||
-        currentInfo.ActualMode === PORT_MODES.SM_MODE_IOLINK_PREOPERATE
-      ) {
+      // If in a transitional state, wait before reconfiguring
+      if (currentInfo.ActualMode === PORT_MODES.SM_MODE_IOLINK_PREOP) {
         console.log(
-          `Port ${port}: In transitional mode ${currentInfo.ActualMode}, waiting before reconfiguration...`
+          `Port ${port}: In preoperate mode, waiting before reconfiguration...`
         );
-        // Wait for transition to complete
         await new Promise((resolve) => setTimeout(resolve, 2000));
       }
     }
 
-    // Verify port exists by attempting to read current configuration
+    // Verify port exists
     try {
       const currentConfig = new TPortConfiguration();
       const checkResult = iolinkDll.IOL_GetPortConfig(
@@ -318,41 +574,37 @@ async function configurePortForIOLink(handle, port) {
         currentConfig.ref()
       );
       if (checkResult === RETURN_CODES.RETURN_WRONG_PARAMETER) {
-        return false; // Port does not exist
+        return false;
       }
 
-      // Log current configuration for debugging
       console.log(
         `Port ${port}: Current config - TargetMode=${
           currentConfig.TargetMode
         }, CRID=0x${currentConfig.CRID.toString(16)}`
       );
     } catch (e) {
-      return false; // Port validation failed
+      return false;
     }
 
     // Create IO-Link port configuration
     const portConfig = new TPortConfiguration();
-
-    // Configuration values according to IO-Link specification
-    portConfig.PortModeDetails = 0; // Free running mode
-    portConfig.TargetMode = PORT_MODES.SM_MODE_IOLINK_OPERATE; // Target: IO-Link operational
-    portConfig.CRID = 0x11; // IO-Link Capability/Revision ID v1.1
-    portConfig.DSConfigure = 0; // Data storage disabled initially
-    portConfig.Synchronisation = 0; // Asynchronous operation
-    portConfig.FunctionID[0] = 0; // No specific function
+    portConfig.PortModeDetails = 0;
+    portConfig.TargetMode = PORT_MODES.SM_MODE_IOLINK_OPERATE;
+    portConfig.CRID = 0x11;
+    portConfig.DSConfigure = 0;
+    portConfig.Synchronisation = 0;
+    portConfig.FunctionID[0] = 0;
     portConfig.FunctionID[1] = 0;
-    portConfig.InspectionLevel = VALIDATION_MODES.SM_VALIDATION_MODE_NONE; // Use proper constant for no validation
-    portConfig.VendorID[0] = 0; // No vendor restriction
+    portConfig.InspectionLevel = VALIDATION_MODES.SM_VALIDATION_MODE_NONE;
+    portConfig.VendorID[0] = 0;
     portConfig.VendorID[1] = 0;
-    portConfig.DeviceID[0] = 0; // No device restriction
+    portConfig.DeviceID[0] = 0;
     portConfig.DeviceID[1] = 0;
     portConfig.DeviceID[2] = 0;
-    portConfig.InputLength = 32; // Maximum input data length
-    portConfig.OutputLength = 32; // Maximum output data length
+    portConfig.InputLength = 32;
+    portConfig.OutputLength = 32;
 
-    // Check if configuration is actually needed before applying
-    // This prevents redundant reconfigurations that can disrupt IO-Link state machine
+    // Check if configuration is actually needed
     const masterState = masterStates.get(handle);
     if (masterState && masterState.ports.has(port)) {
       const existingPortState = masterState.ports.get(port);
@@ -364,7 +616,7 @@ async function configurePortForIOLink(handle, port) {
         )
       ) {
         console.log(
-          `Port ${port}: Configuration unchanged, skipping reconfiguration to prevent state machine disruption`
+          `Port ${port}: Configuration unchanged, skipping reconfiguration`
         );
         return true;
       }
@@ -383,12 +635,12 @@ async function configurePortForIOLink(handle, port) {
       zeroBasedPort,
       portConfig.ref()
     );
-
     console.log(
       `Port ${port}: IOL_SetPortConfig result = ${result} (${
         result === RETURN_CODES.RETURN_OK ? "SUCCESS" : "FAILED"
       })`
     );
+
     return result === RETURN_CODES.RETURN_OK;
   } catch (error) {
     console.error(`Port ${port} configuration error:`, error.message);
@@ -396,8 +648,10 @@ async function configurePortForIOLink(handle, port) {
   }
 }
 
-// Status checking function (NO configuration, just status)
-// This follows the IO-Link state machine - configuration is separate from monitoring
+// ============================================================================
+// PORT STATUS AND DEVICE DETECTION
+// ============================================================================
+
 function checkPortStatus(handle, port) {
   try {
     const masterState = masterStates.get(handle);
@@ -416,8 +670,6 @@ function checkPortStatus(handle, port) {
     }
 
     const zeroBasedPort = port - 1;
-
-    // Get current port status without any configuration changes
     const infoEx = new TInfoEx();
     const result = iolinkDll.IOL_GetModeEx(
       handle,
@@ -426,11 +678,9 @@ function checkPortStatus(handle, port) {
       false
     );
 
-    // Update port state with current actual mode
     portState.actualMode = infoEx.ActualMode;
     portState.lastStatusCheck = Date.now();
 
-    // Parse sensor status according to IO-Link specification
     const isConnected =
       (infoEx.SensorStatus & SENSOR_STATUS.BIT_CONNECTED) !== 0;
     const isPreoperate =
@@ -440,7 +690,6 @@ function checkPortStatus(handle, port) {
     const isSensorStateKnown =
       (infoEx.SensorStatus & SENSOR_STATUS.BIT_SENSORSTATEKNOWN) !== 0;
 
-    // Determine connection state according to IO-Link state machine
     let connectionState = "DISCONNECTED";
     if (isConnected) connectionState = "OPERATE";
     else if (isPreoperate) connectionState = "PREOPERATE";
@@ -460,14 +709,14 @@ function checkPortStatus(handle, port) {
       lastChecked: portState.lastStatusCheck,
     };
 
-    // device info in port state updated if device is connected
+    // Update device info in port state if device is connected
     if (status.connected && !portState.deviceInfo) {
       portState.deviceInfo = parseDeviceInfoFromDPP(
         status.directParameterPage,
         port
       );
     } else if (!status.connected) {
-      portState.deviceInfo = null; // Clear device info if disconnected
+      portState.deviceInfo = null;
     }
 
     return status;
@@ -482,22 +731,19 @@ function checkPortStatus(handle, port) {
   }
 }
 
-// device information from Direct Parameter Page parsed according to IO-Link spec
 function parseDeviceInfoFromDPP(dpp, port) {
   try {
     if (!dpp || dpp.length < 16) {
       return null;
     }
 
-    // Parse according to IO-Link Direct Parameter Page specification (Index 0)
-    const vendorId = (dpp[0] << 8) | dpp[1]; // Bytes 0-1: Vendor ID
-    const deviceId = (dpp[2] << 16) | (dpp[3] << 8) | dpp[4]; // Bytes 2-4: Device ID
-    const functionId = (dpp[5] << 8) | dpp[6]; // Bytes 5-6: Function ID
-    const reserved = dpp[7]; // Byte 7: Reserved
-    const revisionId = dpp[8]; // Byte 8: Revision ID
-    const pdInLength = dpp[9]; // Byte 9: Process Data Input Length
-    const pdOutLength = dpp[10]; // Byte 10: Process Data Output Length
-    const vendorSpecific = dpp.slice(11, 16); // Bytes 11-15: Vendor specific
+    const vendorId = (dpp[0] << 8) | dpp[1];
+    const deviceId = (dpp[2] << 16) | (dpp[3] << 8) | dpp[4];
+    const functionId = (dpp[5] << 8) | dpp[6];
+    const revisionId = dpp[8];
+    const pdInLength = dpp[9];
+    const pdOutLength = dpp[10];
+    const vendorSpecific = dpp.slice(11, 16);
 
     return {
       port: port,
@@ -517,87 +763,6 @@ function parseDeviceInfoFromDPP(dpp, port) {
   }
 }
 
-// Get connected IO-Link Device/Sensor information from a specific port
-function getConnectedDeviceInfo(handle, port) {
-  try {
-    const portStatus = checkPortStatus(handle, port);
-    if (!portStatus.connected) {
-      return null; // No IO-Link Device/Sensor connected to this port
-    }
-
-    // Extract device info from Direct Parameter Page (DPP)
-    const dpp = portStatus.directParameterPage;
-    if (!dpp || dpp.length < 16) {
-      return {
-        port: port,
-        vendorId: "Unknown",
-        deviceId: "Unknown",
-        vendorName: "Unknown",
-        deviceName: "Unknown",
-        serialNumber: "Unknown",
-        status: portStatus,
-      };
-    }
-
-    // Parse Direct Parameter Page (Index 0) according to IO-Link spec
-    const vendorId = (dpp[0] << 8) | dpp[1]; // Bytes 0-1: Vendor ID
-    const deviceId = (dpp[2] << 16) | (dpp[3] << 8) | dpp[4]; // Bytes 2-4: Device ID
-    const functionId = (dpp[5] << 8) | dpp[6]; // Bytes 5-6: Function ID
-    const revisionId = dpp[8]; // Byte 8: Revision ID
-    const pdInLength = dpp[9]; // Byte 9: Process Data Input Length
-    const pdOutLength = dpp[10]; // Byte 10: Process Data Output Length
-
-    // Try reading additional parameters like serial number (Index 21)
-    let serialNumber = "Unknown";
-    try {
-      const serialParam = new TParameter();
-      serialParam.Index = 21; // Serial Number parameter index
-      serialParam.SubIndex = 0;
-      serialParam.Length = 0;
-
-      const serialResult = iolinkDll.IOL_ReadReq(
-        handle,
-        port,
-        serialParam.ref()
-      );
-      if (
-        serialResult === RETURN_CODES.RETURN_OK &&
-        serialParam.ErrorCode === 0
-      ) {
-        // Extract serial number from Result buffer
-        const serialBuffer = Buffer.from(serialParam.Result).slice(
-          0,
-          serialParam.Length
-        );
-        serialNumber = serialBuffer.toString("ascii").replace(/\0/g, "").trim();
-      }
-    } catch (e) {
-      // Serial number reading failed, use Unknown
-    }
-
-    return {
-      port: port,
-      vendorId: `0x${vendorId.toString(16).toUpperCase().padStart(4, "0")}`,
-      deviceId: `0x${deviceId.toString(16).toUpperCase().padStart(6, "0")}`,
-      functionId: `0x${functionId.toString(16).toUpperCase().padStart(4, "0")}`,
-      revisionId: `0x${revisionId.toString(16).toUpperCase().padStart(2, "0")}`,
-      vendorName: getVendorName(vendorId),
-      deviceName: getDeviceName(vendorId, deviceId),
-      serialNumber: serialNumber,
-      processDataInputLength: pdInLength,
-      processDataOutputLength: pdOutLength,
-      status: portStatus,
-    };
-  } catch (error) {
-    console.error(
-      `Error reading IO-Link Device/Sensor info from port ${port}:`,
-      error.message
-    );
-    return null;
-  }
-}
-
-// Scan master ports (uses status checking, not configuration)
 function scanMasterPorts(handle) {
   console.log("Scanning configured ports for connected devices...");
 
@@ -608,7 +773,6 @@ function scanMasterPorts(handle) {
 
   const connectedDevices = [];
 
-  // Check each configured port
   for (const [portNumber, portState] of masterState.ports) {
     if (!portState.configured) {
       console.log(`Port ${portNumber}: Not configured, skipping`);
@@ -643,10 +807,365 @@ function scanMasterPorts(handle) {
   return connectedDevices;
 }
 
-async function discoverAllDevices() {
-  console.log("=== IO-Link Discovery===");
+// ============================================================================
+// PROCESS DATA COMMUNICATION
+// ============================================================================
 
-  // Step 1: Discover IO-Link Masters
+function readProcessData(handle, port, maxLength = 32) {
+  const masterState = masterStates.get(handle);
+  if (!masterState || !masterState.initialized) {
+    throw new Error("Master not initialized. Call initializeMaster() first.");
+  }
+
+  const buffer = Buffer.alloc(maxLength);
+  const length = ref.alloc(DWORD, maxLength);
+  const status = ref.alloc(DWORD);
+
+  const result = iolinkDll.IOL_ReadInputs(
+    handle,
+    port - 1,
+    buffer,
+    length,
+    status
+  );
+  checkReturnCode(result, "Read Process Data");
+
+  const actualLength = length.deref();
+  return {
+    data: buffer.slice(0, actualLength),
+    status: status.deref(),
+    port: port,
+    timestamp: new Date(),
+  };
+}
+
+function writeProcessData(handle, port, data) {
+  const masterState = masterStates.get(handle);
+  if (!masterState || !masterState.initialized) {
+    throw new Error("Master not initialized. Call initializeMaster() first.");
+  }
+
+  const buffer = data instanceof Buffer ? data : Buffer.from(data);
+  const result = iolinkDll.IOL_WriteOutputs(
+    handle,
+    port - 1,
+    buffer,
+    buffer.length
+  );
+  checkReturnCode(result, "Write Process Data");
+
+  return {
+    success: true,
+    bytesWritten: buffer.length,
+    port: port,
+    timestamp: new Date(),
+  };
+}
+
+// CHANGED: Device-specific wrapper functions with validation
+function readDeviceProcessData(handle, port) {
+  validatePortConnection(handle, port);
+  return readProcessData(handle, port);
+}
+
+function writeDeviceProcessData(handle, port, data) {
+  validatePortConnection(handle, port);
+  return writeProcessData(handle, port, data);
+}
+
+// ============================================================================
+// PARAMETER COMMUNICATION (ISDU)
+// ============================================================================
+
+function readDeviceParameter(handle, port, index, subIndex = 0) {
+  try {
+    validatePortConnection(handle, port);
+
+    const parameter = new TParameter();
+    parameter.Index = index;
+    parameter.SubIndex = subIndex;
+    parameter.Length = 0; // Will be filled by the device
+
+    const result = iolinkDll.IOL_ReadReq(handle, port - 1, parameter.ref()); // CHANGED: Fixed port indexing
+    checkReturnCode(
+      result,
+      `Read parameter ${index}.${subIndex} from port ${port}`
+    );
+
+    if (parameter.ErrorCode !== 0) {
+      throw new Error(
+        `IO-Link Device parameter read error: Code=${parameter.ErrorCode}, Additional=${parameter.AdditionalCode}`
+      );
+    }
+
+    return {
+      index: parameter.Index,
+      subIndex: parameter.SubIndex,
+      length: parameter.Length,
+      data: Buffer.from(parameter.Result).slice(0, parameter.Length),
+      errorCode: parameter.ErrorCode,
+      additionalCode: parameter.AdditionalCode,
+      port: port,
+      timestamp: new Date(),
+    };
+  } catch (error) {
+    throw new Error(
+      `Failed to read parameter ${index}.${subIndex} from port ${port}: ${error.message}`
+    );
+  }
+}
+
+// ADDED: Write parameter function
+function writeDeviceParameter(handle, port, index, subIndex = 0, data) {
+  try {
+    validatePortConnection(handle, port);
+
+    const parameter = new TParameter();
+    parameter.Index = index;
+    parameter.SubIndex = subIndex;
+    parameter.Length = data.length;
+
+    // Copy data to parameter buffer
+    const dataBuffer = data instanceof Buffer ? data : Buffer.from(data);
+    dataBuffer.copy(
+      Buffer.from(parameter.Result),
+      0,
+      0,
+      Math.min(dataBuffer.length, 256)
+    );
+
+    const result = iolinkDll.IOL_WriteReq(handle, port - 1, parameter.ref());
+    checkReturnCode(
+      result,
+      `Write parameter ${index}.${subIndex} to port ${port}`
+    );
+
+    if (parameter.ErrorCode !== 0) {
+      throw new Error(
+        `IO-Link Device parameter write error: Code=${parameter.ErrorCode}, Additional=${parameter.AdditionalCode}`
+      );
+    }
+
+    return {
+      index: parameter.Index,
+      subIndex: parameter.SubIndex,
+      length: parameter.Length,
+      errorCode: parameter.ErrorCode,
+      additionalCode: parameter.AdditionalCode,
+      port: port,
+      timestamp: new Date(),
+      success: true,
+    };
+  } catch (error) {
+    throw new Error(
+      `Failed to write parameter ${index}.${subIndex} to port ${port}: ${error.message}`
+    );
+  }
+}
+
+// ADDED: Convenience functions for common parameters
+function readDeviceName(handle, port) {
+  try {
+    const param = readDeviceParameter(
+      handle,
+      port,
+      PARAMETER_INDEX.APPLICATION_SPECIFIC_NAME
+    );
+    return param.data.toString("ascii").replace(/\0/g, "").trim();
+  } catch (error) {
+    return "Unknown Device";
+  }
+}
+
+function readSerialNumber(handle, port) {
+  try {
+    const param = readDeviceParameter(
+      handle,
+      port,
+      PARAMETER_INDEX.SERIAL_NUMBER
+    );
+    return param.data.toString("ascii").replace(/\0/g, "").trim();
+  } catch (error) {
+    return "Unknown Serial";
+  }
+}
+
+function readVendorName(handle, port) {
+  try {
+    const param = readDeviceParameter(
+      handle,
+      port,
+      PARAMETER_INDEX.VENDOR_NAME
+    );
+    return param.data.toString("ascii").replace(/\0/g, "").trim();
+  } catch (error) {
+    return "Unknown Vendor";
+  }
+}
+
+function readProductName(handle, port) {
+  try {
+    const param = readDeviceParameter(
+      handle,
+      port,
+      PARAMETER_INDEX.PRODUCT_NAME
+    );
+    return param.data.toString("ascii").replace(/\0/g, "").trim();
+  } catch (error) {
+    return "Unknown Product";
+  }
+}
+
+// ============================================================================
+// BLOB COMMUNICATION
+// ============================================================================
+
+function readBlob(handle, port, blobId, maxSize = 1024) {
+  const buffer = Buffer.alloc(maxSize);
+  const lengthRead = ref.alloc(DWORD);
+  const status = new TBLOBStatus();
+
+  const result = iolinkDll.BLOB_uploadBLOB(
+    handle,
+    port - 1,
+    blobId,
+    maxSize,
+    buffer,
+    lengthRead,
+    status.ref()
+  );
+
+  if (result !== RETURN_CODES.RETURN_OK && status.nextState !== 0) {
+    const continueResult = continueBlob(handle, port, status);
+    if (continueResult !== RETURN_CODES.RETURN_OK) {
+      throw new Error(
+        `BLOB read failed: ${result}, continue failed: ${continueResult}`
+      );
+    }
+  } else if (result !== RETURN_CODES.RETURN_OK) {
+    throw new Error(`BLOB read failed with code: ${result}`);
+  }
+
+  const actualLength = lengthRead.deref();
+  return {
+    data: buffer.slice(0, actualLength),
+    blobId: blobId,
+    port: port,
+    timestamp: new Date(),
+  };
+}
+
+function writeBlob(handle, port, blobId, data) {
+  const buffer = data instanceof Buffer ? data : Buffer.from(data);
+  const status = new TBLOBStatus();
+
+  const result = iolinkDll.BLOB_downloadBLOB(
+    handle,
+    port - 1,
+    blobId,
+    buffer.length,
+    buffer,
+    status.ref()
+  );
+
+  if (result !== RETURN_CODES.RETURN_OK && status.nextState !== 0) {
+    const continueResult = continueBlob(handle, port, status);
+    if (continueResult !== RETURN_CODES.RETURN_OK) {
+      throw new Error(
+        `BLOB write failed: ${result}, continue failed: ${continueResult}`
+      );
+    }
+  } else if (result !== RETURN_CODES.RETURN_OK) {
+    throw new Error(`BLOB write failed with code: ${result}`);
+  }
+
+  return {
+    success: true,
+    blobId: blobId,
+    bytesWritten: buffer.length,
+    port: port,
+    timestamp: new Date(),
+  };
+}
+
+function continueBlob(handle, port, status) {
+  let result;
+  do {
+    result = iolinkDll.BLOB_Continue(handle, port - 1, status.ref());
+    if (result !== RETURN_CODES.RETURN_OK) return result;
+    if (status.nextState === 7) return -1;
+  } while (status.nextState !== 0);
+  return result;
+}
+
+// ============================================================================
+// STREAMING FUNCTIONS
+// ============================================================================
+
+function streamData(handle, port, interval, callback) {
+  let running = true;
+  const intervalId = setInterval(() => {
+    if (!running) {
+      clearInterval(intervalId);
+      return;
+    }
+    try {
+      const data = readProcessData(handle, port);
+      callback(null, data);
+    } catch (err) {
+      callback(err);
+      running = false;
+      clearInterval(intervalId);
+    }
+  }, interval);
+
+  return () => {
+    running = false;
+    clearInterval(intervalId);
+  };
+}
+
+function streamDeviceData(handle, port, interval, callback) {
+  const connectionStatus = validatePortConnection(handle, port);
+  const deviceInfo = getConnectedDeviceInfo(handle, port);
+
+  console.log(
+    `Starting data stream from IO-Link Device/Sensor on port ${port}: ${deviceInfo?.vendorName} ${deviceInfo?.deviceName}`
+  );
+
+  let running = true;
+  const intervalId = setInterval(() => {
+    if (!running) {
+      clearInterval(intervalId);
+      return;
+    }
+    try {
+      const data = readProcessData(handle, port);
+      callback(null, {
+        ...data,
+        deviceInfo: deviceInfo,
+      });
+    } catch (err) {
+      callback(err);
+      running = false;
+      clearInterval(intervalId);
+    }
+  }, interval);
+
+  return () => {
+    running = false;
+    clearInterval(intervalId);
+    console.log(`Stopped streaming from IO-Link Device/Sensor on port ${port}`);
+  };
+}
+
+// ============================================================================
+// HIGH-LEVEL DISCOVERY FUNCTIONS
+// ============================================================================
+
+async function discoverAllDevices() {
+  console.log("=== IO-Link Discovery ===");
+
   const masters = discoverMasters();
   if (masters.length === 0) {
     console.log("No IO-Link Masters found.");
@@ -655,7 +1174,6 @@ async function discoverAllDevices() {
 
   console.log(`Found ${masters.length} IO-Link Master(s)`);
 
-  // Step 2: Initialize each master and scan for devices
   const topology = { masters: [] };
 
   for (const [index, master] of masters.entries()) {
@@ -665,14 +1183,10 @@ async function discoverAllDevices() {
 
     let handle = null;
     try {
-      // Connect to master
       handle = connect(master.name);
       console.log(`Connected to IO-Link Master: ${master.name}`);
 
-      // Initialize master (configures all ports once)
       const masterState = await initializeMaster(handle, master.name);
-
-      // Scan for connected devices (no configuration, just status checking)
       const connectedDevices = scanMasterPorts(handle);
 
       topology.masters.push({
@@ -710,132 +1224,6 @@ async function discoverAllDevices() {
   return topology;
 }
 
-function getVendorName(vendorId) {
-  const vendors = {
-    0x0001: "SICK AG",
-    0x0002: "Balluff",
-    0x0003: "ifm electronic",
-    0x0004: "Turck",
-    0x0005: "Pepperl+Fuchs",
-    0x0006: "OMRON",
-    0x0007: "Baumer",
-    0x0008: "Banner Engineering",
-    0x0009: "Leuze electronic",
-  };
-  return vendors[vendorId] || `Vendor_${vendorId.toString(16).toUpperCase()}`;
-}
- 
-function getDeviceName(vendorId, deviceId) {
-  return `Device_${deviceId.toString(16).toUpperCase()}`;
-}
-
-//Connection validation helper
-function validatePortConnection(handle, port) {
-  const masterState = masterStates.get(handle);
-  if (!masterState || !masterState.initialized) {
-    throw new Error("Master not initialized. Call initializeMaster() first.");
-  }
-
-  const portState = masterState.ports.get(port);
-  if (!portState || !portState.configured) {
-    throw new Error(`Port ${port} not configured during master initialization`);
-  }
-
-  // Only check actual connection status when really needed
-  const status = checkPortStatus(handle, port);
-  if (!status.connected) {
-    throw new Error(`No IO-Link Device/Sensor connected to port ${port}`);
-  }
-
-  return status;
-}
-
-// Read process data from specific IO-Link Device/Sensor on given port
-function readDeviceProcessData(handle, port) {
-  validatePortConnection(handle, port);
-  return readProcessData(handle, port); // Direct call without redundant status check
-}
-
-// Write process data to specific IO-Link Device/Sensor on given port
-function writeDeviceProcessData(handle, port, data) {
-  validatePortConnection(handle, port);
-  return writeProcessData(handle, port, data); // Direct call without redundant status check
-}
-
-// Read parameter from specific IO-Link Device/Sensor
-function readDeviceParameter(handle, port, index, subIndex = 0) {
-  try {
-    const parameter = new TParameter();
-    parameter.Index = index;
-    parameter.SubIndex = subIndex;
-    parameter.Length = 0; // Will be filled by the device
-
-    const result = iolinkDll.IOL_ReadReq(handle, port, parameter.ref());
-    checkReturnCode(
-      result,
-      `Read parameter ${index}.${subIndex} from port ${port}`
-    );
-
-    if (parameter.ErrorCode !== 0) {
-      throw new Error(
-        `IO-Link Device/Sensor parameter read error: ${parameter.ErrorCode}, Additional: ${parameter.AdditionalCode}`
-      );
-    }
-
-    return {
-      index: parameter.Index,
-      subIndex: parameter.SubIndex,
-      length: parameter.Length,
-      data: Buffer.from(parameter.Result).slice(0, parameter.Length),
-      errorCode: parameter.ErrorCode,
-      additionalCode: parameter.AdditionalCode,
-    };
-  } catch (error) {
-    throw new Error(
-      `Failed to read parameter ${index}.${subIndex} from IO-Link Device/Sensor on port ${port}: ${error.message}`
-    );
-  }
-}
-
-// Enhanced streaming for specific IO-Link Device/Sensor
-function streamDeviceData(handle, port, interval, callback) {
-  const connectionStatus = validatePortConnection(handle, port);
-
-  const deviceInfo = getConnectedDeviceInfo(handle, port);
-  console.log(
-    `Starting data stream from IO-Link Device/Sensor on port ${port}: ${deviceInfo?.vendorName} ${deviceInfo?.deviceName}`
-  );
-
-  let running = true;
-  const intervalId = setInterval(() => {
-    if (!running) {
-      clearInterval(intervalId);
-      return;
-    }
-    try {
-      // OPTIMIZATION: Direct data read without redundant status checks
-      const data = readProcessData(handle, port);
-      callback(null, {
-        ...data,
-        port: port,
-        deviceInfo: deviceInfo,
-        timestamp: new Date(),
-      });
-    } catch (err) {
-      callback(err);
-      running = false;
-      clearInterval(intervalId);
-    }
-  }, interval);
-
-  return () => {
-    running = false;
-    clearInterval(intervalId);
-    console.log(`Stopped streaming from IO-Link Device/Sensor on port ${port}`);
-  };
-}
-
-// Cleanup function to disconnect from all IO-Link Masters
 function disconnectAllMasters(topology) {
   console.log("Disconnecting from all IO-Link Masters...");
   topology.masters.forEach((master) => {
@@ -857,345 +1245,156 @@ function disconnectAllMasters(topology) {
   });
 }
 
-function discoverMasters() {
-  const maxDevices = 5;
-  console.log("Searching for IO-Link Master devices...");
+// ============================================================================
+// UTILITY AND VALIDATION FUNCTIONS
+// ============================================================================
 
-  try {
-    const structSize = TDeviceIdentification.size;
-    const bufferSize = structSize * maxDevices;
-    const deviceBuffer = Buffer.alloc(bufferSize);
-
-    const numDevices = iolinkDll.IOL_GetUSBDevices(deviceBuffer, maxDevices);
-    console.log(`Found ${numDevices} devices`);
-
-    if (numDevices <= 0) {
-      return [];
-    }
-
-    const devices = [];
-    for (let i = 0; i < numDevices; i++) {
-      try {
-        const offset = i * structSize;
-        const deviceSlice = deviceBuffer.slice(offset, offset + structSize);
-        const device = ref.get(deviceSlice, 0, TDeviceIdentification);
-
-        if (!device) continue;
-
-        const extractString = (arrayField) => {
-          try {
-            if (!arrayField) return "Unknown";
-            const buffer = Buffer.isBuffer(arrayField)
-              ? arrayField
-              : Buffer.from(arrayField);
-            let length = 0;
-            while (length < buffer.length && buffer[length] !== 0) length++;
-            return buffer.slice(0, length).toString("utf8").trim() || "Unknown";
-          } catch (e) {
-            return "Unknown";
-          }
-        };
-
-        devices.push({
-          name: extractString(device.Name),
-          productCode: extractString(device.ProductCode),
-          viewName: extractString(device.ViewName),
-        });
-      } catch (err) {
-        console.error(`Error processing device ${i}:`, err.message);
-      }
-    }
-
-    return devices;
-  } catch (error) {
-    console.error("Error in discoverMasters:", error.message);
-    return [];
-  }
-}
-
-// Master reset function to ensure clean state
-function resetMaster(handle) {
-  console.log(`Resetting master state for handle ${handle}...`);
-
-  try {
-    // Clear all port configurations first
-    for (let port = 0; port < 2; port++) {
-      // 0-based for DLL
-      try {
-        const clearConfig = new TPortConfiguration();
-        // Set all fields to 0 (like memset in TMG sample)
-        clearConfig.PortModeDetails = 0;
-        clearConfig.TargetMode = 0;
-        clearConfig.CRID = 0;
-        clearConfig.DSConfigure = 0;
-        clearConfig.Synchronisation = 0;
-        clearConfig.FunctionID[0] = 0;
-        clearConfig.FunctionID[1] = 0;
-        clearConfig.InspectionLevel = 0;
-        clearConfig.InputLength = 0;
-        clearConfig.OutputLength = 0;
-
-        const clearResult = iolinkDll.IOL_SetPortConfig(
-          handle,
-          port,
-          clearConfig.ref()
-        );
-        console.log(`Port ${port + 1}: Reset result = ${clearResult}`);
-      } catch (portError) {
-        console.log(`Port ${port + 1}: Reset failed - ${portError.message}`);
-      }
-    }
-
-    // Wait for reset to take effect
-    console.log(`Master reset complete, waiting for stabilization...`);
-    return true;
-  } catch (error) {
-    console.error(`Master reset failed: ${error.message}`);
-    return false;
-  }
-}
-
-// Connect to device
-function connect(deviceName) {
-  const handle = iolinkDll.IOL_Create(deviceName);
-  if (handle <= 0) {
-    throw new Error(`Failed to connect to device: ${deviceName}`);
-  }
-
-  // Reset master to clean state before use
-  resetMaster(handle);
-
-  return handle;
-}
-
-// Clean disconnect function that properly cleans up master states
-function disconnect(handle) {
-  try {
-    // Clean up master state
-    if (!handle || handle <= 0) {
-      console.log(`Skipping disconnect - invalid handle: ${handle}`);
-      return;
-    }
-
-    // Cleared port configurations before destroying handle (like TMG sample)
-    const masterState = masterStates.get(handle);
-    if (masterState && masterState.ports) {
-      console.log(
-        `Clearing port configurations for master handle ${handle}...`
-      );
-
-      for (const [portNumber, portState] of masterState.ports) {
-        if (portState.configured) {
-          try {
-            console.log(`Clearing configuration for port ${portNumber}...`);
-
-            // Create empty port configuration (like TMG sample)
-            const clearConfig = new TPortConfiguration();
-            // memset(&PortConfig,0,sizeof(PortConfig)) equivalent
-            clearConfig.PortModeDetails = 0;
-            clearConfig.TargetMode = 0;
-            clearConfig.CRID = 0;
-            clearConfig.DSConfigure = 0;
-            clearConfig.Synchronisation = 0;
-            clearConfig.FunctionID[0] = 0;
-            clearConfig.FunctionID[1] = 0;
-            clearConfig.InspectionLevel = 0;
-            clearConfig.InputLength = 0;
-            clearConfig.OutputLength = 0;
-
-            const clearResult = iolinkDll.IOL_SetPortConfig(
-              handle,
-              portNumber - 1,
-              clearConfig.ref()
-            );
-            if (clearResult === RETURN_CODES.RETURN_OK) {
-              console.log(
-                `Port ${portNumber}: Configuration cleared successfully`
-              );
-            } else {
-              console.log(
-                `Port ${portNumber}: Failed to clear configuration (${clearResult})`
-              );
-            }
-          } catch (clearError) {
-            console.log(
-              `Port ${portNumber}: Error clearing configuration - ${clearError.message}`
-            );
-          }
-        }
-      }
-    }
-
-    masterStates.delete(handle);
-
-    // Disconnect from DLL
-    const result = iolinkDll.IOL_Destroy(handle);
-    checkReturnCode(result, "Disconnect");
-  } catch (error) {
-    console.error(`Error during disconnect:`, error.message);
-    // Still remove from tracking even if DLL disconnect fails
-    if (handle && handle > 0) {
-      masterStates.delete(handle);
-    }
-  }
-}
-
-// Process data and BLOB functions
-function readProcessData(handle, port, maxLength = 32) {
+function validatePortConnection(handle, port) {
   const masterState = masterStates.get(handle);
   if (!masterState || !masterState.initialized) {
     throw new Error("Master not initialized. Call initializeMaster() first.");
   }
 
-  const buffer = Buffer.alloc(maxLength);
-  const length = ref.alloc(DWORD, maxLength);
-  const status = ref.alloc(DWORD);
-  const result = iolinkDll.IOL_ReadInputs(
-    handle,
-    port - 1,
-    buffer,
-    length,
-    status
-  );
-  checkReturnCode(result, "Read Process Data");
-  const actualLength = length.deref();
-  return { data: buffer.slice(0, actualLength), status: status.deref() };
-}
-
-function writeProcessData(handle, port, data) {
-  const masterState = masterStates.get(handle);
-  if (!masterState || !masterState.initialized) {
-    throw new Error("Master not initialized. Call initializeMaster() first.");
+  const portState = masterState.ports.get(port);
+  if (!portState || !portState.configured) {
+    throw new Error(`Port ${port} not configured during master initialization`);
   }
 
-  const buffer = data instanceof Buffer ? data : Buffer.from(data);
-  const result = iolinkDll.IOL_WriteOutputs(
-    handle,
-    port - 1,
-    buffer,
-    buffer.length
-  );
-  checkReturnCode(result, "Write Process Data");
-  return true;
-}
-
-// BLOB functions (unchanged)
-function readBlob(handle, port, blobId, maxSize = 1024) {
-  const buffer = Buffer.alloc(maxSize);
-  const lengthRead = ref.alloc(DWORD);
-  const status = new TBLOBStatus();
-  const result = iolinkDll.BLOB_uploadBLOB(
-    handle,
-    port - 1,
-    blobId,
-    maxSize,
-    buffer,
-    lengthRead,
-    status.ref()
-  );
-
-  if (result !== RETURN_CODES.RETURN_OK && status.nextState !== 0) {
-    const continueResult = continueBlob(handle, port, status);
-    if (continueResult !== RETURN_CODES.RETURN_OK) {
-      throw new Error(
-        `BLOB read failed: ${result}, continue failed: ${continueResult}`
-      );
-    }
-  } else if (result !== RETURN_CODES.RETURN_OK) {
-    throw new Error(`BLOB read failed with code: ${result}`);
+  const status = checkPortStatus(handle, port);
+  if (!status.connected) {
+    throw new Error(`No IO-Link Device/Sensor connected to port ${port}`);
   }
 
-  const actualLength = lengthRead.deref();
-  return buffer.slice(0, actualLength);
+  return status;
 }
 
-function writeBlob(handle, port, blobId, data) {
-  const buffer = data instanceof Buffer ? data : Buffer.from(data);
-  const status = new TBLOBStatus();
-  const result = iolinkDll.BLOB_downloadBLOB(
-    handle,
-    port - 1,
-    blobId,
-    buffer.length,
-    buffer,
-    status.ref()
-  );
-
-  if (result !== RETURN_CODES.RETURN_OK && status.nextState !== 0) {
-    const continueResult = continueBlob(handle, port, status);
-    if (continueResult !== RETURN_CODES.RETURN_OK) {
-      throw new Error(
-        `BLOB write failed: ${result}, continue failed: ${continueResult}`
-      );
+function getConnectedDeviceInfo(handle, port) {
+  try {
+    const portStatus = checkPortStatus(handle, port);
+    if (!portStatus.connected) {
+      return null;
     }
-  } else if (result !== RETURN_CODES.RETURN_OK) {
-    throw new Error(`BLOB write failed with code: ${result}`);
-  }
 
-  return true;
-}
-
-function continueBlob(handle, port, status) {
-  let result;
-  do {
-    result = iolinkDll.BLOB_Continue(handle, port - 1, status.ref());
-    if (result !== RETURN_CODES.RETURN_OK) return result;
-    if (status.nextState === 7) return -1;
-  } while (status.nextState !== 0);
-  return result;
-}
-
-// Streaming function
-function streamData(handle, port, interval, callback) {
-  let running = true;
-  const intervalId = setInterval(() => {
-    if (!running) {
-      clearInterval(intervalId);
-      return;
+    const dpp = portStatus.directParameterPage;
+    if (!dpp || dpp.length < 16) {
+      return {
+        port: port,
+        vendorId: "Unknown",
+        deviceId: "Unknown",
+        vendorName: "Unknown",
+        deviceName: "Unknown",
+        serialNumber: "Unknown",
+        status: portStatus,
+      };
     }
+
+    const vendorId = (dpp[0] << 8) | dpp[1];
+    const deviceId = (dpp[2] << 16) | (dpp[3] << 8) | dpp[4];
+    const functionId = (dpp[5] << 8) | dpp[6];
+    const revisionId = dpp[8];
+    const pdInLength = dpp[9];
+    const pdOutLength = dpp[10];
+
+    // Try to read additional parameters
+    let serialNumber = "Unknown";
+    let productName = "Unknown";
+    let vendorName = "Unknown";
+
     try {
-      const data = readProcessData(handle, port);
-      callback(null, { ...data, timestamp: new Date(), port });
-    } catch (err) {
-      callback(err);
-      running = false;
-      clearInterval(intervalId);
+      serialNumber = readSerialNumber(handle, port);
+    } catch (e) {
+      /* Ignore errors */
     }
-  }, interval);
 
-  return () => {
-    running = false;
-    clearInterval(intervalId);
-  };
+    try {
+      productName = readProductName(handle, port);
+    } catch (e) {
+      /* Ignore errors */
+    }
+
+    try {
+      vendorName = readVendorName(handle, port);
+    } catch (e) {
+      /* Ignore errors */
+    }
+
+    return {
+      port: port,
+      vendorId: `0x${vendorId.toString(16).toUpperCase().padStart(4, "0")}`,
+      deviceId: `0x${deviceId.toString(16).toUpperCase().padStart(6, "0")}`,
+      functionId: `0x${functionId.toString(16).toUpperCase().padStart(4, "0")}`,
+      revisionId: `0x${revisionId.toString(16).toUpperCase().padStart(2, "0")}`,
+      vendorName:
+        vendorName !== "Unknown" ? vendorName : getVendorName(vendorId),
+      deviceName:
+        productName !== "Unknown"
+          ? productName
+          : getDeviceName(vendorId, deviceId),
+      serialNumber: serialNumber,
+      processDataInputLength: pdInLength,
+      processDataOutputLength: pdOutLength,
+      status: portStatus,
+    };
+  } catch (error) {
+    console.error(
+      `Error reading IO-Link Device/Sensor info from port ${port}:`,
+      error.message
+    );
+    return null;
+  }
 }
+
+// ============================================================================
+// MODULE EXPORTS
+// ============================================================================
 
 module.exports = {
-  discoverMasters, // Step 1: Discover available masters
-  connect, // Step 2: Connect to a master
-  initializeMaster, // Step 3: Initialize master (configure all ports)
-  checkPortStatus, // Step 4: Monitor port status (no config)
-  scanMasterPorts, // Step 5: Scan for connected devices
-  disconnect, // Step 6: Clean disconnect
+  // Core Master Functions
+  discoverMasters,
+  connect,
+  disconnect,
+  initializeMaster,
 
-  validatePortConnection, // One-time connection validation for efficient operations
+  // Port Management
+  checkPortStatus,
+  scanMasterPorts,
+  validatePortConnection,
 
-  discoverAllDevices,
-  disconnectAllMasters, // Combined discovery and initialization
+  // Process Data Communication
   readProcessData,
   writeProcessData,
-  readBlob,
-  writeBlob,
-  streamData,
   readDeviceProcessData,
   writeDeviceProcessData,
+
+  // Parameter Communication (ISDU)
   readDeviceParameter,
+  writeDeviceParameter,
+  readDeviceName,
+  readSerialNumber,
+  readVendorName,
+  readProductName,
+
+  // BLOB Communication
+  readBlob,
+  writeBlob,
+
+  // Streaming Functions
+  streamData,
   streamDeviceData,
+
+  // High-Level Functions
+  discoverAllDevices,
+  disconnectAllMasters,
+  getConnectedDeviceInfo,
 
   // Constants
   RETURN_CODES,
   PORT_MODES,
   SENSOR_STATUS,
+  VALIDATION_MODES,
+  PARAMETER_INDEX,
 
-  // State access
+  // State Management
   getMasterState: (handle) => masterStates.get(handle),
+  resetGlobalRegistry: () => globalMasterRegistry.clear(),
 };
