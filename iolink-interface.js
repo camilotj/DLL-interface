@@ -365,13 +365,21 @@ function disconnect(handle) {
           try {
             const clearConfig = new TPortConfiguration();
             // Clear all configuration (equivalent to memset)
-            Object.keys(clearConfig).forEach((key) => {
-              if (Array.isArray(clearConfig[key])) {
-                clearConfig[key].fill(0);
-              } else {
-                clearConfig[key] = 0;
-              }
-            });
+            clearConfig.PortModeDetails = 0;
+            clearConfig.TargetMode = 0;
+            clearConfig.CRID = 0;
+            clearConfig.DSConfigure = 0;
+            clearConfig.Synchronisation = 0;
+            clearConfig.FunctionID[0] = 0;
+            clearConfig.FunctionID[1] = 0;
+            clearConfig.InspectionLevel = 0;
+            clearConfig.VendorID[0] = 0;
+            clearConfig.VendorID[1] = 0;
+            clearConfig.DeviceID[0] = 0;
+            clearConfig.DeviceID[1] = 0;
+            clearConfig.DeviceID[2] = 0;
+            clearConfig.InputLength = 0;
+            clearConfig.OutputLength = 0;
 
             const clearResult = iolinkDll.IOL_SetPortConfig(
               handle,
@@ -414,13 +422,21 @@ function resetMaster(handle) {
       try {
         const clearConfig = new TPortConfiguration();
         // Set all fields to 0 (like memset in TMG sample)
-        Object.keys(clearConfig).forEach((key) => {
-          if (Array.isArray(clearConfig[key])) {
-            clearConfig[key].fill(0);
-          } else {
-            clearConfig[key] = 0;
-          }
-        });
+        clearConfig.PortModeDetails = 0;
+        clearConfig.TargetMode = 0;
+        clearConfig.CRID = 0;
+        clearConfig.DSConfigure = 0;
+        clearConfig.Synchronisation = 0;
+        clearConfig.FunctionID[0] = 0;
+        clearConfig.FunctionID[1] = 0;
+        clearConfig.InspectionLevel = 0;
+        clearConfig.VendorID[0] = 0;
+        clearConfig.VendorID[1] = 0;
+        clearConfig.DeviceID[0] = 0;
+        clearConfig.DeviceID[1] = 0;
+        clearConfig.DeviceID[2] = 0;
+        clearConfig.InputLength = 0;
+        clearConfig.OutputLength = 0;
 
         const clearResult = iolinkDll.IOL_SetPortConfig(
           handle,
