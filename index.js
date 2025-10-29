@@ -58,7 +58,7 @@ function displayTopology(topology) {
 
   topology.masters.forEach((master, masterIndex) => {
     console.log(`\n IO-Link Master ${masterIndex + 1}: ${master.name}`);
-    console.log(`   Product: ${master.productCode}`);
+    console.log(`   Product: ${master.viewName}`);
     console.log(`   Handle: ${master.handle}`);
     console.log(`   Connected IO-Link Devices/Sensors: ${master.totalDevices}`);
 
@@ -123,22 +123,22 @@ async function testProcessDataReading(handle, device) {
   try {
     const processData = iolink.readProcessData(handle, device.port);
     console.log(
-      `   ✓ Process Data: ${processData.data.toString("hex")} (${
+      `   Process Data: ${processData.data.toString("hex")} (${
         processData.data.length
       } bytes)`
     );
-    console.log(`   ✓ Status: 0x${processData.status.toString(16)}`);
-    console.log(`   ✓ Timestamp: ${processData.timestamp.toISOString()}`);
+    console.log(`   Status: 0x${processData.status.toString(16)}`);
+    console.log(`   Timestamp: ${processData.timestamp.toISOString()}`);
 
     // multiple reads to show consistency
-    console.log(`   → Reading 3 more samples...`);
+    console.log(`   Reading 3 more samples...`);
     for (let i = 1; i <= 3; i++) {
       await new Promise((resolve) => setTimeout(resolve, 100)); // Small delay
       const sample = iolink.readProcessData(handle, device.port);
       console.log(`   Sample ${i}: ${sample.data.toString("hex")}`);
     }
   } catch (error) {
-    console.log(`   ✗ Process data reading failed: ${error.message}`);
+    console.log(`   Process data reading failed: ${error.message}`);
   }
 }
 
@@ -155,21 +155,21 @@ async function testProcessDataWriting(handle, device) {
         trimmedData
       );
       console.log(
-        `   ✓ Written ${result.bytesWritten} bytes: ${trimmedData.toString(
+        `   Written ${result.bytesWritten} bytes: ${trimmedData.toString(
           "hex"
         )}`
       );
-      console.log(`   ✓ Write timestamp: ${result.timestamp.toISOString()}`);
+      console.log(`   Write timestamp: ${result.timestamp.toISOString()}`);
 
       // Read back to verify
       await new Promise((resolve) => setTimeout(resolve, 100));
       const readback = iolink.readProcessData(handle, device.port);
-      console.log(`   → Readback: ${readback.data.toString("hex")}`);
+      console.log(`   Readback: ${readback.data.toString("hex")}`);
     } else {
-      console.log(`   ⚠ Device has no output data (read-only device)`);
+      console.log(`   Device has no output data (read-only device)`);
     }
   } catch (error) {
-    console.log(`   ✗ Process data writing failed: ${error.message}`);
+    console.log(`   Process data writing failed: ${error.message}`);
   }
 }
 
@@ -201,16 +201,16 @@ async function testParameterReading(handle, device) {
         param.index
       );
       const value = result.data.toString("ascii").replace(/\0/g, "").trim();
-      console.log(`   ✓ ${param.name} (Index ${param.index}): "${value}"`);
+      console.log(`   ${param.name} (Index ${param.index}): "${value}"`);
     } catch (error) {
       console.log(
-        `   ✗ ${param.name} (Index ${param.index}): ${error.message}`
+        `   ${param.name} (Index ${param.index}): ${error.message}`
       );
     }
   }
 
   // Test convenience functions
-  console.log(`   → Testing convenience functions:`);
+  console.log(`   Testing convenience functions:`);
   try {
     const deviceName = iolink.readDeviceName(handle, device.port);
     const serialNumber = iolink.readSerialNumber(handle, device.port);
@@ -232,7 +232,7 @@ async function testParameterWriting(handle, device) {
     const newName = `TestDevice_${Date.now().toString().slice(-4)}`;
     const nameData = Buffer.from(newName, "ascii");
 
-    console.log(`   → Attempting to write device name: "${newName}"`);
+    console.log(`   Attempting to write device name: "${newName}"`);
 
     try {
       const result = iolink.writeDeviceParameter(
@@ -242,20 +242,20 @@ async function testParameterWriting(handle, device) {
         0,
         nameData
       );
-      console.log(`   ✓ Parameter write successful`);
-      console.log(`   ✓ Write timestamp: ${result.timestamp.toISOString()}`);
+      console.log(`   Parameter write successful`);
+      console.log(`   Write timestamp: ${result.timestamp.toISOString()}`);
 
       // Read back to verify
       await new Promise((resolve) => setTimeout(resolve, 100));
       const readback = iolink.readDeviceName(handle, device.port);
-      console.log(`   → Readback name: "${readback}"`);
+      console.log(`   Readback name: "${readback}"`);
     } catch (writeError) {
       console.log(
-        `   ⚠ Parameter writing not supported or failed: ${writeError.message}`
+        `   Parameter writing not supported or failed: ${writeError.message}`
       );
     }
   } catch (error) {
-    console.log(`   ✗ Parameter writing test failed: ${error.message}`);
+    console.log(`   Parameter writing test failed: ${error.message}`);
   }
 }
 
@@ -263,7 +263,7 @@ async function testParameterWriting(handle, device) {
 async function testDataStreaming(handle, device) {
   return new Promise((resolve) => {
     try {
-      console.log(`   → Starting 5-second data stream (200ms interval)...`);
+      console.log(`   Starting 5-second data stream (200ms interval)...`);
 
       let sampleCount = 0;
       const startTime = Date.now();
@@ -274,7 +274,7 @@ async function testDataStreaming(handle, device) {
         200, // 200ms interval
         (err, data) => {
           if (err) {
-            console.error(`   ✗ Stream error: ${err.message}`);
+            console.error(`   Stream error: ${err.message}`);
             resolve();
             return;
           }
@@ -293,12 +293,12 @@ async function testDataStreaming(handle, device) {
       setTimeout(() => {
         stopStreaming();
         console.log(
-          `   ✓ Streaming completed - ${sampleCount} samples collected`
+          `   Streaming completed - ${sampleCount} samples collected`
         );
         resolve();
       }, 5000);
     } catch (error) {
-      console.log(`   ✗ Data streaming failed: ${error.message}`);
+      console.log(`   Data streaming failed: ${error.message}`);
       resolve();
     }
   });

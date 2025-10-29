@@ -218,30 +218,6 @@ function checkReturnCode(returnCode, operation) {
   }
 }
 
-function getVendorName(vendorId) {
-  if (!vendorId) return "Unknown";
-  return vendors[vendorId] || `Vendor_${vendorId.toString(16).toUpperCase()}`;
-}
-
-function getDeviceName(vendorId, deviceId) {
-  if (!vendorId || !deviceId) return "Unknown Device";
-
-  const deviceMappings = {
-    "0x000A": {
-      "0x0A2B11": "Temperature Sensor",
-    },
-  };
-
-  const vendorKey = `0x${vendorId.toString(16).toUpperCase().padStart(4, "0")}`;
-  const deviceKey = `0x${deviceId.toString(16).toUpperCase().padStart(6, "0")}`;
-
-  if (deviceMappings[vendorKey] && deviceMappings[vendorKey][deviceKey]) {
-    return deviceMappings[vendorKey][deviceKey];
-  }
-
-  return `Device_${deviceId.toString(16).toUpperCase()}`;
-}
-
 function extractString(arrayField) {
   try {
     if (!arrayField) return "Unknown";
@@ -317,7 +293,7 @@ function disconnect(handle) {
   try {
     if (!handle || handle <= 0) {
       console.log(`Skipping disconnect - invalid handle: ${handle}`);
-      return;4
+      return;
     }
 
     const masterState = masterStates.get(handle);
@@ -731,8 +707,8 @@ function parseDeviceInfoFromDPP(dpp, port) { // direct parameter page 1
       deviceId: `0x${deviceId.toString(16).toUpperCase().padStart(6, "0")}`,
       functionId: `0x${functionId.toString(16).toUpperCase().padStart(4, "0")}`,
       revisionId: `0x${revisionId.toString(16).toUpperCase().padStart(2, "0")}`,
-      vendorName: getVendorName(vendorId),
-      deviceName: getDeviceName(vendorId, deviceId),
+      vendorName: "Unknown Vendor",
+      deviceName: "Unknown Device",
       processDataInputLength: pdInLength, // 18 bytes
       processDataOutputLength: pdOutLength, // 4 bytes
       vendorSpecific: vendorSpecific,
@@ -768,9 +744,36 @@ function scanMasterPorts(handle) {
       );
 
       if (status.connected && portState.deviceInfo) {
+        let actualVendorName = "Unknown Vendor";
+        let actualDeviceName = "Unknown Device";
+
+        try {
+          actualVendorName = readVendorName(handle, portNumber);
+          if (actualVendorName === "Unknown Vendor") {
+            actualVendorName = `Vendor_${portState.deviceInfo.vendorId}`;
+          }
+        } catch (e) {
+          console.log(`   Debug: Could not read vendor name for port ${portNumber}: ${e.message}`);
+          actualVendorName = `Vendor_${portState.deviceInfo.vendorId}`;
+        }
+
+        try {
+          actualDeviceName = readDeviceName(handle, portNumber);
+          if (actualDeviceName === "Unknown Device") {
+            actualDeviceName = `Device_${portState.deviceInfo.deviceId}`;
+          }
+        } catch (e) {
+          console.log(`   Debug: Could not read device name for port ${portNumber}: ${e.message}`);
+          actualDeviceName = `Device_${portState.deviceInfo.deviceId}`;
+        }
+
+        portState.deviceInfo.vendorName = actualVendorName;
+        portState.deviceInfo.deviceName = actualDeviceName;
+
         console.log(
-          `Port ${portNumber}: Found ${portState.deviceInfo.vendorName} ${portState.deviceInfo.deviceName}`
+          `Port ${portNumber}: Found ${actualVendorName} ${actualDeviceName}`
         );
+        
         connectedDevices.push({
           ...portState.deviceInfo,
           status: status,
@@ -781,9 +784,7 @@ function scanMasterPorts(handle) {
     }
   }
 
-  console.log(
-    `Scan complete: Found ${connectedDevices.length} connected devices`
-  );
+  console.log(`Scan complete: Found ${connectedDevices.length} connected devices`);
   return connectedDevices;
 }
 
@@ -946,22 +947,11 @@ function readDeviceName(handle, port) {
       port,
       PARAMETER_INDEX.APPLICATION_SPECIFIC_NAME
     );
-    return param.data.toString("ascii").replace(/\0/g, "").trim();
+    const result = param.data.toString("ascii").replace(/\0/g, "").trim();
+    return result && result.length > 0 ? result : "Unknown Device";
   } catch (error) {
+    console.log(`   Debug: APPLICATION_SPECIFIC_NAME not available for port ${port}: ${error.message}`);
     return "Unknown Device";
-  }
-}
-
-function readSerialNumber(handle, port) {
-  try {
-    const param = readDeviceParameter(
-      handle,
-      port,
-      PARAMETER_INDEX.SERIAL_NUMBER
-    );
-    return param.data.toString("ascii").replace(/\0/g, "").trim();
-  } catch (error) {
-    return "Unknown Serial";
   }
 }
 
@@ -972,8 +962,10 @@ function readVendorName(handle, port) {
       port,
       PARAMETER_INDEX.VENDOR_NAME
     );
-    return param.data.toString("ascii").replace(/\0/g, "").trim();
+    const result = param.data.toString("ascii").replace(/\0/g, "").trim();
+    return result && result.length > 0 ? result : "Unknown Vendor";
   } catch (error) {
+    console.log(`   Debug: VENDOR_NAME not available for port ${port}: ${error.message}`);
     return "Unknown Vendor";
   }
 }
@@ -985,9 +977,26 @@ function readProductName(handle, port) {
       port,
       PARAMETER_INDEX.PRODUCT_NAME
     );
-    return param.data.toString("ascii").replace(/\0/g, "").trim();
+    const result = param.data.toString("ascii").replace(/\0/g, "").trim();
+    return result && result.length > 0 ? result : "Unknown Product";
   } catch (error) {
+    console.log(`   Debug: PRODUCT_NAME not available for port ${port}: ${error.message}`);
     return "Unknown Product";
+  }
+}
+
+function readSerialNumber(handle, port) {
+  try {
+    const param = readDeviceParameter(
+      handle,
+      port,
+      PARAMETER_INDEX.SERIAL_NUMBER
+    );
+    const result = param.data.toString("ascii").replace(/\0/g, "").trim();
+    return result && result.length > 0 ? result : "";
+  } catch (error) {
+    console.log(`   Debug: SERIAL_NUMBER not available for port ${port}: ${error.message}`);
+    return "";
   }
 }
 
@@ -1234,8 +1243,8 @@ function getConnectedDeviceInfo(handle, port) {
         port: port,
         vendorId: "Unknown",
         deviceId: "Unknown",
-        vendorName: "Unknown",
-        deviceName: "Unknown",
+        vendorName: "Unknown Vendor",
+        deviceName: "Unknown Device",
         serialNumber: "Unknown",
         status: portStatus,
       };
@@ -1248,28 +1257,37 @@ function getConnectedDeviceInfo(handle, port) {
     const pdInLength = dpp[9];
     const pdOutLength = dpp[10];
 
-    // Try to read additional parameters
-    let serialNumber = "Unknown";
-    let productName = "Unknown";
-    let vendorName = "Unknown";
+    // Read actual parameters using the parameter reading functions
+    let serialNumber = "";
+    let deviceName = "Unknown Device";
+    let vendorName = "Unknown Vendor";
 
     try {
       serialNumber = readSerialNumber(handle, port);
     } catch (e) {
-      /* Ignore errors */
+      console.log(`   Debug: Serial number not available for port ${port}`);
     }
 
     try {
-      productName = readProductName(handle, port);
+      deviceName = readDeviceName(handle, port);
     } catch (e) {
-      /* Ignore errors */
+      console.log(`   Debug: Device name not available for port ${port}`);
     }
 
     try {
       vendorName = readVendorName(handle, port);
     } catch (e) {
-      /* Ignore errors */
+      console.log(`   Debug: Vendor name not available for port ${port}`);
     }
+
+    // Use fallbacks only if we get default values
+    const finalVendorName = vendorName !== "Unknown Vendor" 
+      ? vendorName 
+      : `Vendor_${vendorId.toString(16).toUpperCase()}`;
+      
+    const finalDeviceName = deviceName !== "Unknown Device" 
+      ? deviceName 
+      : `Device_${deviceId.toString(16).toUpperCase()}`;
 
     return {
       port: port,
@@ -1277,12 +1295,8 @@ function getConnectedDeviceInfo(handle, port) {
       deviceId: `0x${deviceId.toString(16).toUpperCase().padStart(6, "0")}`,
       functionId: `0x${functionId.toString(16).toUpperCase().padStart(4, "0")}`,
       revisionId: `0x${revisionId.toString(16).toUpperCase().padStart(2, "0")}`,
-      vendorName:
-        vendorName !== "Unknown" ? vendorName : getVendorName(vendorId),
-      deviceName:
-        productName !== "Unknown"
-          ? productName
-          : getDeviceName(vendorId, deviceId),
+      vendorName: finalVendorName,
+      deviceName: finalDeviceName,
       serialNumber: serialNumber,
       processDataInputLength: pdInLength,
       processDataOutputLength: pdOutLength,
