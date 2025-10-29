@@ -14,7 +14,7 @@ async function main() {
   try {
     console.log("Starting IO-Link Discovery...\n");
 
-    // CHANGED: Use the enhanced discovery function
+    // 1. alle gerate entdecken
     const topology = await iolink.discoverAllDevices();
 
     if (topology.masters.length === 0) {
@@ -22,10 +22,10 @@ async function main() {
       return;
     }
 
-    // CHANGED: Enhanced topology display with more details
+    // 2. network topology
     displayTopology(topology);
 
-    // CHANGED: Work with the first available device
+    // 3. ops testen wenn gerate entdeckt
     const firstMasterWithDevices = topology.masters.find(
       (master) => master.connectedDevices.length > 0
     );
@@ -44,7 +44,7 @@ async function main() {
       );
     }
 
-    // CHANGED: Always clean up
+    // 4. cleanup
     iolink.disconnectAllMasters(topology);
     console.log("\nDemo completed successfully!");
   } catch (err) {
@@ -53,7 +53,6 @@ async function main() {
   }
 }
 
-// ADDED: Enhanced topology display function
 function displayTopology(topology) {
   console.log("\n === IO-Link Network Topology ===");
 
@@ -83,7 +82,7 @@ function displayTopology(topology) {
   });
 }
 
-// ADDED: Comprehensive device testing function
+// device testing fct
 async function testDeviceOperations(master) {
   const device = master.connectedDevices[0];
   const handle = master.handle;
@@ -93,6 +92,7 @@ async function testDeviceOperations(master) {
     `Device: ${device.vendorName} ${device.deviceName} on Port ${device.port}`
   );
 
+  // sequential testing of all functionalities
   try {
     // Test 1: Process Data Reading
     console.log(`\n1. Reading Process Data...`);
@@ -118,10 +118,10 @@ async function testDeviceOperations(master) {
   }
 }
 
-// ADDED: Process data reading test
+// 1. Process data reading test
 async function testProcessDataReading(handle, device) {
   try {
-    const processData = iolink.readDeviceProcessData(handle, device.port);
+    const processData = iolink.readProcessData(handle, device.port);
     console.log(
       `   ✓ Process Data: ${processData.data.toString("hex")} (${
         processData.data.length
@@ -130,11 +130,11 @@ async function testProcessDataReading(handle, device) {
     console.log(`   ✓ Status: 0x${processData.status.toString(16)}`);
     console.log(`   ✓ Timestamp: ${processData.timestamp.toISOString()}`);
 
-    // ADDED: Try multiple reads to show consistency
+    // multiple reads to show consistency
     console.log(`   → Reading 3 more samples...`);
     for (let i = 1; i <= 3; i++) {
       await new Promise((resolve) => setTimeout(resolve, 100)); // Small delay
-      const sample = iolink.readDeviceProcessData(handle, device.port);
+      const sample = iolink.readProcessData(handle, device.port);
       console.log(`   Sample ${i}: ${sample.data.toString("hex")}`);
     }
   } catch (error) {
@@ -142,14 +142,14 @@ async function testProcessDataReading(handle, device) {
   }
 }
 
-// ADDED: Process data writing test
+// 2. Process data writing test
 async function testProcessDataWriting(handle, device) {
   try {
     if (device.processDataOutputLength > 0) {
       const testData = Buffer.from([0x01, 0x02, 0x03, 0x04]);
       const trimmedData = testData.slice(0, device.processDataOutputLength);
 
-      const result = iolink.writeDeviceProcessData(
+      const result = iolink.writeProcessData(
         handle,
         device.port,
         trimmedData
@@ -161,9 +161,9 @@ async function testProcessDataWriting(handle, device) {
       );
       console.log(`   ✓ Write timestamp: ${result.timestamp.toISOString()}`);
 
-      // ADDED: Read back to verify
+      // Read back to verify
       await new Promise((resolve) => setTimeout(resolve, 100));
-      const readback = iolink.readDeviceProcessData(handle, device.port);
+      const readback = iolink.readProcessData(handle, device.port);
       console.log(`   → Readback: ${readback.data.toString("hex")}`);
     } else {
       console.log(`   ⚠ Device has no output data (read-only device)`);
@@ -173,7 +173,7 @@ async function testProcessDataWriting(handle, device) {
   }
 }
 
-// ADDED: Parameter reading test
+// 3. Parameter reading test
 async function testParameterReading(handle, device) {
   const parametersToTest = [
     { index: iolink.PARAMETER_INDEX.VENDOR_NAME, name: "Vendor Name" },
@@ -209,7 +209,7 @@ async function testParameterReading(handle, device) {
     }
   }
 
-  // ADDED: Test convenience functions
+  // Test convenience functions
   console.log(`   → Testing convenience functions:`);
   try {
     const deviceName = iolink.readDeviceName(handle, device.port);
@@ -226,10 +226,9 @@ async function testParameterReading(handle, device) {
   }
 }
 
-// ADDED: Parameter writing test
+// 4. Parameter writing test
 async function testParameterWriting(handle, device) {
   try {
-    // ADDED: Test writing Application Specific Name (if writable)
     const newName = `TestDevice_${Date.now().toString().slice(-4)}`;
     const nameData = Buffer.from(newName, "ascii");
 
@@ -246,7 +245,7 @@ async function testParameterWriting(handle, device) {
       console.log(`   ✓ Parameter write successful`);
       console.log(`   ✓ Write timestamp: ${result.timestamp.toISOString()}`);
 
-      // ADDED: Read back to verify
+      // Read back to verify
       await new Promise((resolve) => setTimeout(resolve, 100));
       const readback = iolink.readDeviceName(handle, device.port);
       console.log(`   → Readback name: "${readback}"`);
@@ -260,7 +259,7 @@ async function testParameterWriting(handle, device) {
   }
 }
 
-// ADDED: Data streaming test
+// 5. Data streaming test
 async function testDataStreaming(handle, device) {
   return new Promise((resolve) => {
     try {
@@ -290,7 +289,7 @@ async function testDataStreaming(handle, device) {
         }
       );
 
-      // ADDED: Stop streaming after 5 seconds
+      // Stop streaming after 5 seconds
       setTimeout(() => {
         stopStreaming();
         console.log(
@@ -305,5 +304,4 @@ async function testDataStreaming(handle, device) {
   });
 }
 
-// Start the demo
 main();
