@@ -1,5 +1,4 @@
 import { IOLinkInterface } from './iolink-interface';
-import type { TDeviceIdentification } from './types';
 
 interface Device {
   port: number;
@@ -92,13 +91,13 @@ async function discoverAllDevices(iolink: IOLinkInterface): Promise<Topology> {
 
             const device: Device = {
               port,
-              vendorName: `Vendor ${(config as any).VendorID}`,
-              deviceName: `Device ${(config as any).DeviceID}`,
-              vendorId: String((config as any).VendorID),
-              deviceId: String((config as any).DeviceID),
-              serialNumber: String((config as any).SerialNumber),
-              processDataInputLength: (config as any).InputLength,
-              processDataOutputLength: (config as any).OutputLength,
+              vendorName: this.readVendorName(port),
+              deviceName: this.readDeviceName(port),
+              vendorId: Buffer.from(config.VendorID).toString('hex'),
+              deviceId: Buffer.from(config.DeviceID).toString('hex'),
+              serialNumber: this.readSerialNumber(port),
+              processDataInputLength: config.InputLength,
+              processDataOutputLength: config.OutputLength,
               status: {
                 mode: getModeString(mode.mode)
               }

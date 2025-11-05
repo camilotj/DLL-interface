@@ -1,7 +1,11 @@
-import ffi from 'ffi-napi';
-import ref from 'ref-napi';
-import path from 'path';
+import { Buffer } from 'node:buffer';
+import * as ffi from 'ffi-napi';
+import * as ref from 'ref-napi';
+import * as path from 'path';
 import {
+  type IBLOBStatus,
+  type StructInstance,
+  type TDeviceIdentificationData,
   BYTE,
   WORD,
   LONG,
@@ -15,47 +19,31 @@ import {
   PORT_MODES,
   SENSOR_STATUS,
   VALIDATION_MODES,
-  PARAMETER_INDEX,
-  type IOLinkDLL,
-  type IBLOBStatus
+  PARAMETER_INDEX
 } from './types';
 
-// ============================================================================
-// DLL LOADING
-// ============================================================================
-
+// DLL loading
 const dllPath = path.join(__dirname, '..', 'TMG_USB_IO-Link_Interface_V2_DLL/Sample_x64/Sample_C/SimpleApplication/TMGIOLUSBIF20_64.dll');
 console.log('Loading DLL from:', dllPath);
 
-// Check if DLL exists
 if (!require('fs').existsSync(dllPath)) {
   throw new Error(`DLL not found at path: ${dllPath}`);
 }
 
 let iolinkDll: any;
 try {
-  iolinkDll = ffi.Library(dllPath,
-  {
-    // Core master functions (master management)
-    IOL_GetUSBDevices: [LONG, [ref.refType(TDeviceIdentification), LONG]],
+  iolinkDll = ffi.Library(dllPath, {
+    IOL_GetUSBDevices: [LONG, ['pointer', LONG]],
     IOL_Create: [LONG, [ref.types.CString]],
     IOL_Destroy: [LONG, [LONG]],
-
-    // Port configuration and status (port ops)
-    IOL_GetModeEx: [LONG, [LONG, DWORD, 'pointer', ref.types.bool]],
+    IOL_GetModeEx: [LONG, [LONG, DWORD, 'pointer', 'bool']],
     IOL_GetSensorStatus: [LONG, [LONG, DWORD, 'pointer']],
     IOL_GetPortConfig: [LONG, [LONG, DWORD, 'pointer']],
     IOL_SetPortConfig: [LONG, [LONG, DWORD, 'pointer']],
-
-    // Parameter communication (ISDU)
     IOL_ReadReq: [LONG, [LONG, DWORD, 'pointer']],
     IOL_WriteReq: [LONG, [LONG, DWORD, 'pointer']],
-
-    // Process data communication
     IOL_ReadInputs: [LONG, [LONG, DWORD, 'pointer', 'pointer', 'pointer']],
     IOL_WriteOutputs: [LONG, [LONG, DWORD, 'pointer', DWORD]],
-
-    // BLOB functions
     BLOB_uploadBLOB: [LONG, [LONG, DWORD, LONG, DWORD, 'pointer', 'pointer', 'pointer']],
     BLOB_downloadBLOB: [LONG, [LONG, DWORD, LONG, DWORD, 'pointer', 'pointer']],
     BLOB_Continue: [LONG, [LONG, DWORD, 'pointer']],
@@ -67,23 +55,18 @@ try {
   throw error;
 }
 
-// ============================================================================
-// HELPER FUNCTIONS
-// ============================================================================
-
 function checkReturnCode(code: number, operation: string): void {
   if (code !== RETURN_CODES.RETURN_OK) {
     throw new Error(`${operation} failed with code ${code}`);
   }
 }
 
-function arrayToString(array: number[]): string {
+function arrayToString(array: Buffer | number[]): string {
   try {
-    // Convert the array to a Buffer and then to a string, removing null terminators
-    const buf = Buffer.from(array);
+    const buf = Buffer.isBuffer(array) ? array : Buffer.from(array);
     let str = '';
     for (let i = 0; i < buf.length; i++) {
-      if (buf[i] === 0) break;  // Stop at first null terminator
+      if (buf[i] === 0) break;
       str += String.fromCharCode(buf[i]);
     }
     return str.trim();
@@ -93,15 +76,11 @@ function arrayToString(array: number[]): string {
   }
 }
 
-// ============================================================================
-// CLASS IMPLEMENTATION
-// ============================================================================
-
 export class IOLinkInterface {
   private handle: number = -1;
 
   constructor() {
-    // Initialize the interface
+    // Initialize
   }
 
   connect(portName: string): void {
@@ -119,18 +98,54 @@ export class IOLinkInterface {
         case -1: errorMessage = 'Internal error'; break;
         case -2: errorMessage = 'Device not available'; break;
         case -7: errorMessage = 'Unknown handle'; break;
-        case -9: errorMessage = 'Device access error - Check permissions and if device is properly connected'; break;
+        case -9: errorMessage = 'Device access error'; break;
         case -10: errorMessage = 'Wrong parameter'; break;
         default: errorMessage = `Unknown error code ${result}`; break;
       }
       throw new Error(`Device connection failed: ${errorMessage} (code ${result})`);
     }
     this.handle = result;
+    
+    console.log(`Connected to IO-Link Master: ${portName}`);
+    console.log(`Initializing IO-Link Master: ${portName}`);
+    this.initializePorts();
+  }
+
+  private initializePorts(): void {
+    console.log('Configuring 2 ports for IO-Link operation...');
+    
+    for (let port = 0; port < 2; port++) {
+      try {
+        const config = new TPortConfiguration();
+        const currentConfig = this.getPortConfig(port);
+        Object.assign(config, currentConfig);
+        
+        config.CRID = 0x11;
+        config.TargetMode = PORT_MODES.SM_MODE_IOLINK_OPERATE;
+        config.InspectionLevel = 0;
+        
+        const result = iolinkDll.IOL_SetPortConfig(this.handle, port, config.ref());
+        checkReturnCode(result, `Configure port ${port + 1}`);
+      } catch (error) {
+        console.error(`Error configuring port ${port + 1}:`, error);
+      }
+    }
   }
 
   disconnect(): void {
     if (this.handle === -1) {
       return;
+    }
+
+    for (let port = 0; port < 2; port++) {
+      try {
+        const config = this.getPortConfig(port);
+        config.TargetMode = PORT_MODES.SM_MODE_RESET;
+        config.CRID = 0;
+        iolinkDll.IOL_SetPortConfig(this.handle, port, config.ref());
+      } catch (error) {
+        console.warn(`Warning: Failed to clear port ${port + 1} configuration:`, error);
+      }
     }
 
     const result = iolinkDll.IOL_Destroy(this.handle);
@@ -141,44 +156,52 @@ export class IOLinkInterface {
   getConnectedDevices(): string[] {
     const maxDevices = 10;
     const devices: string[] = [];
-    console.log('Searching for USB devices...');
 
     try {
-      // Create a device structure for the DLL to fill
-      const device = new TDeviceIdentification();
-      console.log('Created device structure:', {
-        size: TDeviceIdentification.size,
-        fields: {
-          Name: device.Name ? device.Name.length : 'undefined',
-          ProductCode: device.ProductCode ? device.ProductCode.length : 'undefined',
-          ViewName: device.ViewName ? device.ViewName.length : 'undefined'
+      try {
+        const devicesArray = [];
+        const DeviceStruct = TDeviceIdentification;
+        
+        for (let i = 0; i < maxDevices; i++) {
+          const device = new DeviceStruct();
+          if (!device || !device.ref) {
+            throw new Error('Failed to create device identification structure');
+          }
+          devicesArray.push(device);
         }
-      });
 
-      // Call DLL to get devices
-      const count = iolinkDll.IOL_GetUSBDevices(device.ref(), maxDevices);
-      console.log(`Found ${count} devices`);
+        const foundDevices = iolinkDll.IOL_GetUSBDevices(devicesArray[0].ref(), maxDevices);
+        
+        if (foundDevices > 0) {
+          for (let i = 0; i < foundDevices; i++) {
+            const deviceName = arrayToString(devicesArray[i].Name);
+            if (deviceName) {
+              devices.push(deviceName);
+            }
+          }
+        }
+        
+        return devices;
+      } catch (arrayError) {
+        console.log('Array method failed, trying single device method...');
+        
+        const deviceStruct = require('./ffi-bindings').structs.DeviceIdentification;
+        const device = new deviceStruct();
+        if (!device || !device.ref) {
+          throw new Error('Failed to create device identification structure');
+        }
 
-      if (count <= 0) {
+        const count = iolinkDll.IOL_GetUSBDevices(device.ref(), maxDevices);
+
+        if (count > 0 && device && device.Name) {
+          const name = arrayToString(device.Name);
+          if (name) {
+            devices.push(name);
+          }
+        }
+
         return devices;
       }
-
-      // Extract device info
-      if (device && device.ViewName) {
-        const name = arrayToString(device.Name);
-        const viewName = arrayToString(device.ViewName);
-        console.log('Device info:', {
-          name: name || '(empty)',
-          viewName: viewName || '(empty)'
-        });
-        
-        if (viewName && viewName.trim()) {
-          devices.push(viewName.trim());
-        }
-      }
-
-      console.log('Detected devices:', devices);
-      return devices;
     } catch (error) {
       console.error('Error in getConnectedDevices:', error);
       return [];
@@ -204,26 +227,51 @@ export class IOLinkInterface {
     return status.deref();
   }
 
-  getPortConfig(port: number): typeof TPortConfiguration {
+  getPortConfig(port: number): InstanceType<typeof TPortConfiguration> {
     const config = new TPortConfiguration();
-    const result = iolinkDll.IOL_GetPortConfig(this.handle, port, (config as any).ref());
+    const result = iolinkDll.IOL_GetPortConfig(this.handle, port, config.ref());
     checkReturnCode(result, 'Get port configuration');
     return config;
   }
 
-  setPortConfig(port: number, config: typeof TPortConfiguration): void {
-    const result = iolinkDll.IOL_SetPortConfig(this.handle, port, (config as any).ref());
+  setPortConfig(port: number, config: InstanceType<typeof TPortConfiguration>): void {
+    const result = iolinkDll.IOL_SetPortConfig(this.handle, port, config.ref());
     checkReturnCode(result, 'Set port configuration');
   }
 
-  readParameter(port: number, index: number, subIndex: number = 0): typeof TParameter {
-    const param = new TParameter();
-    param.Index = index;
-    param.SubIndex = subIndex;
+  readParameter(port: number, index: number, subIndex: number = 0, defaultValue = ''): string {
+    try {
+      const param = new TParameter();
+      param.Index = index;
+      param.SubIndex = subIndex;
+      param.Length = 0;
 
-    const result = iolinkDll.IOL_ReadReq(this.handle, port, (param as any).ref());
-    checkReturnCode(result, 'Read parameter');
-    return param;
+      const result = iolinkDll.IOL_ReadReq(this.handle, port, param.ref());
+      if (result !== 0) {
+        return defaultValue;
+      }
+
+      return Buffer.from(param.Result).toString('utf8').replace(/\0/g, '').trim() || defaultValue;
+    } catch (error) {
+      console.error('Error reading parameter:', error);
+      return defaultValue;
+    }
+  }
+
+  readDeviceName(port: number): string {
+    return this.readParameter(port, PARAMETER_INDEX.APPLICATION_SPECIFIC_NAME, 0, 'Unknown Device');
+  }
+
+  readVendorName(port: number): string {
+    return this.readParameter(port, PARAMETER_INDEX.VENDOR_NAME, 0, 'Unknown Vendor');
+  }
+
+  readProductName(port: number): string {
+    return this.readParameter(port, PARAMETER_INDEX.PRODUCT_NAME, 0, 'Unknown Product');
+  }
+
+  readSerialNumber(port: number): string {
+    return this.readParameter(port, PARAMETER_INDEX.SERIAL_NUMBER, 0, '');
   }
 
   writeParameter(port: number, index: number, data: Buffer, subIndex: number = 0): void {
@@ -245,7 +293,7 @@ export class IOLinkInterface {
     const result = iolinkDll.IOL_ReadInputs(
       this.handle,
       port,
-      ref.ref(data) as ref.Pointer<number>,
+      data,
       length,
       valid
     );
@@ -261,13 +309,39 @@ export class IOLinkInterface {
     const result = iolinkDll.IOL_WriteOutputs(
       this.handle,
       port,
-      ref.ref(data) as ref.Pointer<number>,
+      data,
       data.length
     );
     checkReturnCode(result, 'Write outputs');
   }
 
-  uploadBlob(port: number, blobId: number, size: number): { data: Buffer; status: typeof TBLOBStatus } {
+  async streamData(port: number, duration: number = 5000, interval: number = 200): Promise<void> {
+    return new Promise((resolve) => {
+      const startTime = Date.now();
+      let sampleCount = 0;
+      
+      const streamInterval = setInterval(() => {
+        try {
+          const currentTime = Date.now();
+          const elapsedTime = currentTime - startTime;
+          
+          if (elapsedTime >= duration) {
+            clearInterval(streamInterval);
+            resolve();
+            return;
+          }
+          
+          const { data, valid } = this.readInputs(port);
+          sampleCount++;
+          console.log(`Sample ${sampleCount}: ${data.toString('hex')} (${elapsedTime}ms)`);
+        } catch (error) {
+          console.error('Error reading sample:', error);
+        }
+      }, interval);
+    });
+  }
+
+  uploadBlob(port: number, blobId: number, size: number): { data: Buffer; status: StructInstance<IBLOBStatus> } {
     const data = Buffer.alloc(size);
     const actual = ref.alloc(DWORD);
     const status = new TBLOBStatus();
@@ -277,7 +351,7 @@ export class IOLinkInterface {
       port,
       blobId,
       size,
-      ref.ref(data) as ref.Pointer<number>,
+      data,
       actual,
       status.ref()
     );
@@ -289,7 +363,7 @@ export class IOLinkInterface {
     };
   }
 
-  downloadBlob(port: number, blobId: number, data: Buffer): typeof TBLOBStatus {
+  downloadBlob(port: number, blobId: number, data: Buffer): StructInstance<IBLOBStatus> {
     const status = new TBLOBStatus();
 
     const result = iolinkDll.BLOB_downloadBLOB(
@@ -297,7 +371,7 @@ export class IOLinkInterface {
       port,
       blobId,
       data.length,
-      ref.ref(data) as ref.Pointer<number>,
+      data,
       status.ref()
     );
     checkReturnCode(result, 'Download BLOB');
@@ -305,14 +379,14 @@ export class IOLinkInterface {
     return status;
   }
 
-  continueBlob(port: number): typeof TBLOBStatus {
+  continueBlob(port: number): StructInstance<IBLOBStatus> {
     const status = new TBLOBStatus();
     const result = iolinkDll.BLOB_Continue(this.handle, port, status.ref());
     checkReturnCode(result, 'Continue BLOB');
     return status;
   }
 
-  readBlobId(port: number): { blobId: number; status: typeof TBLOBStatus } {
+  readBlobId(port: number): { blobId: number; status: StructInstance<IBLOBStatus> } {
     const blobId = ref.alloc(LONG);
     const status = new TBLOBStatus();
 
