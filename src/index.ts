@@ -1,4 +1,5 @@
 import { IOLinkInterface } from './iolink-interface';
+import { SENSOR_STATUS } from './types';
 
 interface Device {
   port: number;
@@ -32,6 +33,9 @@ async function main(): Promise<void> {
 
     const iolink = new IOLinkInterface();
     const topology = await discoverAllDevices(iolink);
+
+    // Add a delay to ensure proper cleanup before exit
+    await new Promise(resolve => setTimeout(resolve, 1000));
 
     if (topology.masters.length === 0) {
       console.log("No IO-Link Masters found");
@@ -72,30 +76,44 @@ async function discoverAllDevices(iolink: IOLinkInterface): Promise<Topology> {
 
   for (const deviceName of devices) {
     try {
-      iolink.connect(deviceName);
+      await iolink.connect(deviceName);
       const master: Master = {
         name: deviceName,
         viewName: deviceName,
-        handle: -1, // Will be set by connect
+        handle: iolink.getHandle(),
         totalDevices: 0,
         connectedDevices: []
       };
 
-      // Scan all 4 ports for connected devices
-      for (let port = 0; port < 4; port++) {
+      console.log('Checking port 1 for connected devices...');
+      // Only scan the first 2 ports as per the JS version
+      for (let port = 0; port < 2; port++) {
         try {
-          const status = iolink.getSensorStatus(port);
-          if (status & 0x01) { // Device connected
-            const config = iolink.getPortConfig(port);
-            const mode = iolink.getPortMode(port);
+          console.log(`Checking port ${port + 1} for connected devices...`);
+          
+          // Get current port mode
+          const mode = iolink.getPortMode(port);
+          console.log(`Port ${port + 1}: ${getModeString(mode.mode)}`);
 
+          // Check if device is connected
+          const status = iolink.getSensorStatus(port);
+          const isConnected = (status & SENSOR_STATUS.BIT_CONNECTED) !== 0;
+          
+          if (isConnected) {
+            const config = iolink.getPortConfig(port);
+            
+            // Try to read device information
+            const deviceName = iolink.readDeviceName(port) || 'Unknown Device';
+            const vendorName = iolink.readVendorName(port) || 'Unknown Vendor';
+            const serialNumber = iolink.readSerialNumber(port) || '';
+            
             const device: Device = {
-              port,
-              vendorName: this.readVendorName(port),
-              deviceName: this.readDeviceName(port),
+              port: port + 1, // Convert to 1-based for display
+              vendorName,
+              deviceName,
               vendorId: Buffer.from(config.VendorID).toString('hex'),
               deviceId: Buffer.from(config.DeviceID).toString('hex'),
-              serialNumber: this.readSerialNumber(port),
+              serialNumber,
               processDataInputLength: config.InputLength,
               processDataOutputLength: config.OutputLength,
               status: {
@@ -103,10 +121,13 @@ async function discoverAllDevices(iolink: IOLinkInterface): Promise<Topology> {
               }
             };
 
+            console.log(`Port ${port + 1}: Found ${device.vendorName} ${device.deviceName}`);
             master.connectedDevices.push(device);
+          } else {
+            console.log(`Port ${port + 1}: No device connected`);
           }
         } catch (err) {
-          console.warn(`Warning: Error scanning port ${port}:`, err);
+          console.log(`Port ${port + 1}: UNKNOWN (connected: false)`);
         }
       }
 

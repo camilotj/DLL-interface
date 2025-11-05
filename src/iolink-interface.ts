@@ -83,53 +83,123 @@ export class IOLinkInterface {
     // Initialize
   }
 
-  connect(portName: string): void {
+  getHandle(): number {
+    return this.handle;
+  }
+
+  async connect(portName: string): Promise<void> {
     if (this.handle !== -1) {
       throw new Error('Already connected to a device');
     }
     
+    console.log('\n=== IO-Link Discovery ===');
+    console.log('Searching for IO-Link Master devices...');
     console.log(`Attempting to connect to device: ${portName}`);
+    
     const result = iolinkDll.IOL_Create(portName);
     console.log(`Connection result: ${result}`);
     
     if (result <= 0) {
       let errorMessage: string;
       switch(result) {
-        case -1: errorMessage = 'Internal error'; break;
-        case -2: errorMessage = 'Device not available'; break;
-        case -7: errorMessage = 'Unknown handle'; break;
+        case RETURN_CODES.RETURN_INTERNAL_ERROR: errorMessage = 'Internal error'; break;
+        case RETURN_CODES.RETURN_DEVICE_NOT_AVAILABLE: 
+          console.warn(`Warning: Device ${portName} not available`);
+          return; // Just return without throwing
+        case RETURN_CODES.RETURN_UNKNOWN_HANDLE: errorMessage = 'Unknown handle'; break;
         case -9: errorMessage = 'Device access error'; break;
-        case -10: errorMessage = 'Wrong parameter'; break;
+        case RETURN_CODES.RETURN_WRONG_PARAMETER: errorMessage = 'Wrong parameter'; break;
         default: errorMessage = `Unknown error code ${result}`; break;
       }
-      throw new Error(`Device connection failed: ${errorMessage} (code ${result})`);
+      
+      // Only throw for non-availability errors
+      if (result !== RETURN_CODES.RETURN_DEVICE_NOT_AVAILABLE) {
+        throw new Error(`Device connection failed: ${errorMessage} (code ${result})`);
+      }
     }
-    this.handle = result;
     
+    this.handle = result;
     console.log(`Connected to IO-Link Master: ${portName}`);
-    console.log(`Initializing IO-Link Master: ${portName}`);
-    this.initializePorts();
+    
+    console.log(`\n--- Initializing IO-Link Master: ${portName} ---`);
+    console.log('Resetting master state...');
+
+    await this.initializePorts();
+    console.log(`Master ${portName} initialization complete`);
+
+    // Start scanning for devices
+    console.log('Scanning configured ports for connected devices...');
   }
 
-  private initializePorts(): void {
+  private async initializePorts(): Promise<void> {
     console.log('Configuring 2 ports for IO-Link operation...');
-    
-    for (let port = 0; port < 2; port++) {
+
+    // First reset all ports
+    for (let port = 1; port <= 2; port++) {
       try {
+        console.log(`Port ${port}: Checking current configuration state...`);
+        
+        // Get current port mode
+        const currentInfo = new TInfoEx();
+        const currentModeResult = iolinkDll.IOL_GetModeEx(
+          this.handle,
+          port - 1,  // Convert to 0-based for DLL
+          currentInfo.ref(),
+          false
+        );
+
+        if (currentModeResult === RETURN_CODES.RETURN_OK) {
+          console.log(`Port ${port}: Current mode = ${currentInfo.ActualMode}, target mode = ${PORT_MODES.SM_MODE_IOLINK_OPERATE}`);
+
+          // If already in the desired mode, skip reconfiguration
+          if (currentInfo.ActualMode === PORT_MODES.SM_MODE_IOLINK_OPERATE) {
+            console.log(`Port ${port}: Already in IO-Link operate mode, skipping reconfiguration`);
+            continue;
+          }
+
+          // If in a transitional state, wait before reconfiguring
+          if (currentInfo.ActualMode === PORT_MODES.SM_MODE_IOLINK_PREOP) {
+            console.log(`Port ${port}: In preoperate mode, waiting before reconfiguration...`);
+            await new Promise(resolve => setTimeout(resolve, 2000));
+          }
+        }
+
+        // Get and check current config
+        const currentConfig = new TPortConfiguration();
+        const checkResult = iolinkDll.IOL_GetPortConfig(this.handle, port - 1, currentConfig.ref());
+        if (checkResult === RETURN_CODES.RETURN_OK) {
+          console.log(`Port ${port}: Current config - TargetMode=${currentConfig.TargetMode}, CRID=0x${currentConfig.CRID.toString(16)}`);
+        }
+
+        // Set new configuration
         const config = new TPortConfiguration();
-        const currentConfig = this.getPortConfig(port);
         Object.assign(config, currentConfig);
         
         config.CRID = 0x11;
         config.TargetMode = PORT_MODES.SM_MODE_IOLINK_OPERATE;
         config.InspectionLevel = 0;
+
+        console.log(`Port ${port}: Setting config - CRID=0x${config.CRID.toString(16)}, TargetMode=${config.TargetMode}, InspectionLevel=${config.InspectionLevel}`);
+        const result = iolinkDll.IOL_SetPortConfig(this.handle, port - 1, config.ref());
         
-        const result = iolinkDll.IOL_SetPortConfig(this.handle, port, config.ref());
-        checkReturnCode(result, `Configure port ${port + 1}`);
+        if (result === RETURN_CODES.RETURN_OK) {
+          console.log(`Port ${port}: IOL_SetPortConfig result = ${result} (SUCCESS)`);
+          console.log(`Port ${port}: Configured for IO-Link operation`);
+        } else {
+          console.error(`Port ${port}: IOL_SetPortConfig failed with result = ${result}`);
+        }
       } catch (error) {
-        console.error(`Error configuring port ${port + 1}:`, error);
+        console.error(`Error configuring port ${port}:`, error);
       }
     }
+
+    // Wait for port stabilization
+    console.log('Waiting for port stabilization (IO-Link timing requirements)...');
+    console.log('Stabilization period: 5000ms');
+    await new Promise(resolve => setTimeout(resolve, 5000));
+    
+    console.log('Additional device detection wait...');
+    await new Promise(resolve => setTimeout(resolve, 2000));
   }
 
   disconnect(): void {
@@ -223,7 +293,18 @@ export class IOLinkInterface {
   getSensorStatus(port: number): number {
     const status = ref.alloc(DWORD);
     const result = iolinkDll.IOL_GetSensorStatus(this.handle, port, status);
-    checkReturnCode(result, 'Get sensor status');
+    
+    // Don't throw on common errors
+    if (result === RETURN_CODES.RETURN_UNKNOWN_HANDLE || 
+        result === RETURN_CODES.RETURN_DEVICE_NOT_AVAILABLE) {
+      return 0;
+    }
+    
+    if (result !== RETURN_CODES.RETURN_OK) {
+      console.warn(`Warning: Get sensor status failed with code ${result}`);
+      return 0;
+    }
+    
     return status.deref();
   }
 
