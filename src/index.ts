@@ -1,51 +1,33 @@
-import { IOLinkInterface } from './iolink-interface';
-import { SENSOR_STATUS } from './types';
+/**
+ * IO-Link Interface Demo Application
+ * Demonstrates complete IO-Link functionality including:
+ * - Master discovery and initialization
+ * - Device detection and identification
+ * - Process data reading/writing
+ * - Parameter reading/writing
+ * - Data streaming
+ */
 
-interface Device {
-  port: number;
-  vendorName: string;
-  deviceName: string;
-  vendorId: string;
-  deviceId: string;
-  serialNumber: string;
-  processDataInputLength: number;
-  processDataOutputLength: number;
-  status: {
-    mode: string;
-  };
-}
-
-interface Master {
-  name: string;
-  viewName: string;
-  handle: number;
-  totalDevices: number;
-  connectedDevices: Device[];
-}
-
-interface Topology {
-  masters: Master[];
-}
+import * as iolink from './iolink-interface';
+import { PARAMETER_INDEX } from './types';
+import type { MasterTopology, NetworkTopology, DeviceInfo } from './types';
 
 async function main(): Promise<void> {
   try {
-    console.log("Starting IO-Link Discovery...\n");
+    console.log('Starting IO-Link Discovery...\n');
 
-    const iolink = new IOLinkInterface();
-    const topology = await discoverAllDevices(iolink);
-
-    // Add a delay to ensure proper cleanup before exit
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    // 1. Discover all devices
+    const topology = await iolink.discoverAllDevices();
 
     if (topology.masters.length === 0) {
-      console.log("No IO-Link Masters found");
+      console.log('No IO-Link Masters found');
       return;
     }
 
-    // Display network topology
+    // 2. Display network topology
     displayTopology(topology);
 
-    // Test operations if devices are found
+    // 3. Test operations if devices are discovered
     const firstMasterWithDevices = topology.masters.find(
       (master) => master.connectedDevices.length > 0
     );
@@ -53,129 +35,43 @@ async function main(): Promise<void> {
     if (firstMasterWithDevices && firstMasterWithDevices.connectedDevices.length > 0) {
       await testDeviceOperations(firstMasterWithDevices);
     } else {
-      console.log("\n  No IO-Link Devices/Sensors found connected to any IO-Link Master");
-      console.log("Please connect IO-Link Devices/Sensors to the IO-Link Master ports and try again.");
+      console.log('\n  No IO-Link Devices/Sensors found connected to any IO-Link Master');
+      console.log('Please connect IO-Link Devices/Sensors to the IO-Link Master ports and try again.');
     }
 
-    // Cleanup
-    disconnectAllMasters(topology);
-    console.log("\nDemo completed successfully!");
-  } catch (err) {
-    if (err instanceof Error) {
-      console.error(" Fatal Error:", err.message);
-      console.error("Stack:", err.stack);
-    } else {
-      console.error(" Fatal Error:", err);
-    }
+    // 4. Cleanup
+    iolink.disconnectAllMasters(topology);
+    console.log('\nDemo completed successfully!');
+  } catch (err: any) {
+    console.error('✗ Fatal Error:', err.message);
+    console.error('Stack:', err.stack);
   }
 }
 
-async function discoverAllDevices(iolink: IOLinkInterface): Promise<Topology> {
-  const devices = iolink.getConnectedDevices();
-  const masters: Master[] = [];
-
-  for (const deviceName of devices) {
-    try {
-      await iolink.connect(deviceName);
-      const master: Master = {
-        name: deviceName,
-        viewName: deviceName,
-        handle: iolink.getHandle(),
-        totalDevices: 0,
-        connectedDevices: []
-      };
-
-      console.log('Checking port 1 for connected devices...');
-      // Only scan the first 2 ports as per the JS version
-      for (let port = 0; port < 2; port++) {
-        try {
-          console.log(`Checking port ${port + 1} for connected devices...`);
-          
-          // Get current port mode
-          const mode = iolink.getPortMode(port);
-          console.log(`Port ${port + 1}: ${getModeString(mode.mode)}`);
-
-          // Check if device is connected
-          const status = iolink.getSensorStatus(port);
-          const isConnected = (status & SENSOR_STATUS.BIT_CONNECTED) !== 0;
-          
-          if (isConnected) {
-            const config = iolink.getPortConfig(port);
-            
-            // Try to read device information
-            const deviceName = iolink.readDeviceName(port) || 'Unknown Device';
-            const vendorName = iolink.readVendorName(port) || 'Unknown Vendor';
-            const serialNumber = iolink.readSerialNumber(port) || '';
-            
-            const device: Device = {
-              port: port + 1, // Convert to 1-based for display
-              vendorName,
-              deviceName,
-              vendorId: Buffer.from(config.VendorID).toString('hex'),
-              deviceId: Buffer.from(config.DeviceID).toString('hex'),
-              serialNumber,
-              processDataInputLength: config.InputLength,
-              processDataOutputLength: config.OutputLength,
-              status: {
-                mode: getModeString(mode.mode)
-              }
-            };
-
-            console.log(`Port ${port + 1}: Found ${device.vendorName} ${device.deviceName}`);
-            master.connectedDevices.push(device);
-          } else {
-            console.log(`Port ${port + 1}: No device connected`);
-          }
-        } catch (err) {
-          console.log(`Port ${port + 1}: UNKNOWN (connected: false)`);
-        }
-      }
-
-      master.totalDevices = master.connectedDevices.length;
-      masters.push(master);
-    } catch (err) {
-      console.warn(`Warning: Error connecting to master ${deviceName}:`, err);
-    }
-  }
-
-  return { masters };
-}
-
-function getModeString(mode: number): string {
-  switch (mode) {
-    case 0: return 'RESET';
-    case 1: return 'PREOPERATE';
-    case 3: return 'SIO INPUT';
-    case 4: return 'SIO OUTPUT';
-    case 12: return 'IO-LINK OPERATE';
-    default: return `UNKNOWN (${mode})`;
-  }
-}
-
-function displayTopology(topology: Topology): void {
-  console.log("\n === IO-Link Network Topology ===");
+function displayTopology(topology: NetworkTopology): void {
+  console.log('\n=== IO-Link Network Topology ===');
 
   topology.masters.forEach((master, masterIndex) => {
-    console.log(`\n IO-Link Master ${masterIndex + 1}: ${master.name}`);
-    console.log(`   Product: ${master.viewName}`);
-    console.log(`   Handle: ${master.handle}`);
-    console.log(`   Connected IO-Link Devices/Sensors: ${master.totalDevices}`);
+    console.log(`\nIO-Link Master ${masterIndex + 1}: ${master.name}`);
+    console.log(`  Product: ${master.viewName}`);
+    console.log(`  Handle: ${master.handle}`);
+    console.log(`  Connected IO-Link Devices/Sensors: ${master.totalDevices}`);
 
     if (master.connectedDevices.length > 0) {
       master.connectedDevices.forEach((device) => {
-        console.log(`    Port ${device.port}: ${device.vendorName} ${device.deviceName}`);
-        console.log(`      Vendor ID: ${device.vendorId}, Device ID: ${device.deviceId}`);
-        console.log(`      Serial: ${device.serialNumber}`);
-        console.log(`      Process Data: ${device.processDataInputLength}/${device.processDataOutputLength} bytes`);
-        console.log(`      Status: ${device.status.mode}`);
+        console.log(`   Port ${device.port}: ${device.vendorName} ${device.deviceName}`);
+        console.log(`     Vendor ID: ${device.vendorId}, Device ID: ${device.deviceId}`);
+        console.log(`     Serial: ${device.serialNumber}`);
+        console.log(`     Process Data: ${device.processDataInputLength}/${device.processDataOutputLength} bytes`);
+        console.log(`     Status: ${device.status?.mode}`);
       });
     } else {
-      console.log("   (No IO-Link Devices/Sensors connected)");
+      console.log('  (No IO-Link Devices/Sensors connected)');
     }
   });
 }
 
-async function testDeviceOperations(master: Master): Promise<void> {
+async function testDeviceOperations(master: MasterTopology): Promise<void> {
   const device = master.connectedDevices[0];
   const handle = master.handle;
 
@@ -186,29 +82,173 @@ async function testDeviceOperations(master: Master): Promise<void> {
     // Test 1: Process Data Reading
     console.log(`\n1. Reading Process Data...`);
     await testProcessDataReading(handle, device);
-  } catch (err) {
-    console.error('Error during device operations:', err);
+
+    // Test 2: Process Data Writing (if supported)
+    console.log(`\n2. Testing Process Data Writing...`);
+    await testProcessDataWriting(handle, device);
+
+    // Test 3: Parameter Reading
+    console.log(`\n3. Reading Device Parameters...`);
+    await testParameterReading(handle, device);
+
+    // Test 4: Parameter Writing (if supported)
+    console.log(`\n4. Testing Parameter Writing...`);
+    await testParameterWriting(handle, device);
+
+    // Test 5: Data Streaming
+    console.log(`\n5. Testing Data Streaming...`);
+    await testDataStreaming(handle, device);
+  } catch (error: any) {
+    console.error(`  ✗ Error during device testing:`, error.message);
   }
 }
 
-async function testProcessDataReading(handle: number, device: Device): Promise<void> {
-  // Implementation of process data reading test
-  // This would need to be implemented based on your specific requirements
+async function testProcessDataReading(handle: number, device: DeviceInfo): Promise<void> {
+  try {
+    const processData = iolink.readProcessData(handle, device.port);
+    console.log(`  ✓ Process Data: ${processData.data.toString('hex')} (${processData.data.length} bytes)`);
+    console.log(`  ✓ Status: 0x${processData.status.toString(16)}`);
+    console.log(`  ✓ Timestamp: ${processData.timestamp.toISOString()}`);
+
+    // Multiple reads to show consistency
+    console.log(`  → Reading 3 more samples...`);
+    for (let i = 1; i <= 3; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      const sample = iolink.readProcessData(handle, device.port);
+      console.log(`  Sample ${i}: ${sample.data.toString('hex')}`);
+    }
+  } catch (error: any) {
+    console.log(`  ✗ Process data reading failed: ${error.message}`);
+  }
 }
 
-function disconnectAllMasters(topology: Topology): void {
-  topology.masters.forEach(master => {
+async function testProcessDataWriting(handle: number, device: DeviceInfo): Promise<void> {
+  try {
+    if (device.processDataOutputLength > 0) {
+      const testData = Buffer.from([0x01, 0x02, 0x03, 0x04]);
+      const trimmedData = testData.slice(0, device.processDataOutputLength);
+
+      const result = iolink.writeProcessData(handle, device.port, trimmedData);
+      console.log(`  ✓ Written ${result.bytesWritten} bytes: ${trimmedData.toString('hex')}`);
+      console.log(`  ✓ Write timestamp: ${result.timestamp.toISOString()}`);
+
+      // Read back to verify
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      const readback = iolink.readProcessData(handle, device.port);
+      console.log(`  → Readback: ${readback.data.toString('hex')}`);
+    } else {
+      console.log(`  ⚠ Device has no output data (read-only device)`);
+    }
+  } catch (error: any) {
+    console.log(`  ✗ Process data writing failed: ${error.message}`);
+  }
+}
+
+async function testParameterReading(handle: number, device: DeviceInfo): Promise<void> {
+  const parametersToTest = [
+    { index: PARAMETER_INDEX.VENDOR_NAME, name: 'Vendor Name' },
+    { index: PARAMETER_INDEX.PRODUCT_NAME, name: 'Product Name' },
+    { index: PARAMETER_INDEX.SERIAL_NUMBER, name: 'Serial Number' },
+    { index: PARAMETER_INDEX.APPLICATION_SPECIFIC_NAME, name: 'Device Name' },
+    { index: PARAMETER_INDEX.HARDWARE_REVISION, name: 'Hardware Revision' },
+    { index: PARAMETER_INDEX.FIRMWARE_REVISION, name: 'Firmware Revision' },
+  ];
+
+  for (const param of parametersToTest) {
     try {
-      const iolink = new IOLinkInterface();
-      iolink.disconnect();
-    } catch (err) {
-      console.warn(`Warning: Error disconnecting master ${master.name}:`, err);
+      const result = iolink.readDeviceParameter(handle, device.port, param.index);
+      const value = result.data.toString('ascii').replace(/\0/g, '').trim();
+      console.log(`  ✓ ${param.name} (Index ${param.index}): "${value}"`);
+    } catch (error: any) {
+      console.log(`  ✗ ${param.name} (Index ${param.index}): ${error.message}`);
+    }
+  }
+
+  // Test convenience functions
+  console.log(`  → Testing convenience functions:`);
+  try {
+    const deviceName = iolink.readDeviceName(handle, device.port);
+    const serialNumber = iolink.readSerialNumber(handle, device.port);
+    const vendorName = iolink.readVendorName(handle, device.port);
+    const productName = iolink.readProductName(handle, device.port);
+
+    console.log(`    Device Name: "${deviceName}"`);
+    console.log(`    Serial Number: "${serialNumber}"`);
+    console.log(`    Vendor Name: "${vendorName}"`);
+    console.log(`    Product Name: "${productName}"`);
+  } catch (error: any) {
+    console.log(`    ✗ Error with convenience functions: ${error.message}`);
+  }
+}
+
+async function testParameterWriting(handle: number, device: DeviceInfo): Promise<void> {
+  try {
+    const newName = `TestDevice_${Date.now().toString().slice(-4)}`;
+    const nameData = Buffer.from(newName, 'ascii');
+
+    console.log(`  → Attempting to write device name: "${newName}"`);
+
+    try {
+      const result = iolink.writeDeviceParameter(
+        handle,
+        device.port,
+        PARAMETER_INDEX.APPLICATION_SPECIFIC_NAME,
+        0,
+        nameData
+      );
+      console.log(`  ✓ Parameter write successful`);
+      console.log(`  ✓ Write timestamp: ${result.timestamp.toISOString()}`);
+
+      // Read back to verify
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      const readback = iolink.readDeviceName(handle, device.port);
+      console.log(`  → Readback name: "${readback}"`);
+    } catch (writeError: any) {
+      console.log(`  ⚠ Parameter writing not supported or failed: ${writeError.message}`);
+    }
+  } catch (error: any) {
+    console.log(`  ✗ Parameter writing test failed: ${error.message}`);
+  }
+}
+
+async function testDataStreaming(handle: number, device: DeviceInfo): Promise<void> {
+  return new Promise((resolve) => {
+    try {
+      console.log(`  → Starting 5-second data stream (200ms interval)...`);
+
+      let sampleCount = 0;
+      const startTime = Date.now();
+
+      const stopStreaming = iolink.streamDeviceData(
+        handle,
+        device.port,
+        200,
+        (err, data) => {
+          if (err) {
+            console.error(`  ✗ Stream error: ${err.message}`);
+            resolve();
+            return;
+          }
+
+          if (data) {
+            sampleCount++;
+            const elapsed = Date.now() - startTime;
+            console.log(`  Sample ${sampleCount}: ${data.data.toString('hex')} (${elapsed}ms)`);
+          }
+        }
+      );
+
+      // Stop streaming after 5 seconds
+      setTimeout(() => {
+        stopStreaming();
+        console.log(`  ✓ Streaming completed - ${sampleCount} samples collected`);
+        resolve();
+      }, 5000);
+    } catch (error: any) {
+      console.log(`  ✗ Data streaming failed: ${error.message}`);
+      resolve();
     }
   });
 }
 
-// Run the main function
-main().catch(err => {
-  console.error('Unhandled error:', err);
-  process.exit(1);
-});
+main();
