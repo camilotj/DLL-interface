@@ -95,14 +95,45 @@ const iolinkDll = ffi.Library(
     IOL_WriteReq: [LONG, [LONG, DWORD, ref.refType(TParameter)]],
 
     // Process data communication
-    IOL_ReadInputs: [LONG, [LONG, DWORD, ref.refType(BYTE), ref.refType(DWORD), ref.refType(DWORD)],],
+    IOL_ReadInputs: [
+      LONG,
+      [LONG, DWORD, ref.refType(BYTE), ref.refType(DWORD), ref.refType(DWORD)],
+    ],
     IOL_WriteOutputs: [LONG, [LONG, DWORD, ref.refType(BYTE), DWORD]],
 
     // BLOB functions
-    BLOB_uploadBLOB: [LONG, [LONG, DWORD, LONG, DWORD, ref.refType(BYTE), ref.refType(DWORD), ref.refType(TBLOBStatus)]],
-    BLOB_downloadBLOB: [LONG, [LONG, DWORD, LONG, DWORD, ref.refType(BYTE), ref.refType(TBLOBStatus)]],
+    BLOB_uploadBLOB: [
+      LONG,
+      [
+        LONG,
+        DWORD,
+        LONG,
+        DWORD,
+        ref.refType(BYTE),
+        ref.refType(DWORD),
+        ref.refType(TBLOBStatus),
+      ],
+    ],
+    BLOB_downloadBLOB: [
+      LONG,
+      [LONG, DWORD, LONG, DWORD, ref.refType(BYTE), ref.refType(TBLOBStatus)],
+    ],
     BLOB_Continue: [LONG, [LONG, DWORD, ref.refType(TBLOBStatus)]],
-    BLOB_ReadBlobID: [LONG,[LONG, DWORD, ref.refType(LONG), ref.refType(TBLOBStatus)],],
+    BLOB_ReadBlobID: [
+      LONG,
+      [LONG, DWORD, ref.refType(LONG), ref.refType(TBLOBStatus)],
+    ],
+
+    // Native Data Logging functions
+    IOL_StartDataLoggingInBuffer: [
+      LONG,
+      [LONG, DWORD, LONG, DWORD, ref.refType(DWORD)],
+    ],
+    IOL_StopDataLogging: [LONG, [LONG]],
+    IOL_ReadLoggingBuffer: [
+      LONG,
+      [LONG, ref.refType(LONG), ref.refType(BYTE), ref.refType(DWORD)],
+    ],
   }
 );
 
@@ -252,7 +283,7 @@ function discoverMasters() {
     if (numDevices <= 0) {
       return [];
     }
-     // parse device info from buffer
+    // parse device info from buffer
     const devices = [];
     for (let i = 0; i < numDevices; i++) {
       try {
@@ -408,7 +439,8 @@ async function initializeMaster(handle, deviceName, maxPorts = 2) {
 
   // Check if this master was already configured recently
   const registryEntry = globalMasterRegistry.get(deviceName);
-  const wasRecentlyConfigured = registryEntry && Date.now() - registryEntry.lastConfigTime < 120000; // within last 2 minutes
+  const wasRecentlyConfigured =
+    registryEntry && Date.now() - registryEntry.lastConfigTime < 120000; // within last 2 minutes
 
   let masterState = new MasterState(handle, deviceName);
   masterStates.set(handle, masterState);
@@ -640,11 +672,15 @@ function checkPortStatus(handle, port) {
     portState.lastStatusCheck = Date.now();
 
     // decoded status bits
-    const isConnected = (infoEx.SensorStatus & SENSOR_STATUS.BIT_CONNECTED) !== 0;
-    const isPreoperate = (infoEx.SensorStatus & SENSOR_STATUS.BIT_PREOPERATE) !== 0;
-    const isWrongSensor = (infoEx.SensorStatus & SENSOR_STATUS.BIT_WRONGSENSOR) !== 0;
-    const isSensorStateKnown = (infoEx.SensorStatus & SENSOR_STATUS.BIT_SENSORSTATEKNOWN) !== 0;
-    
+    const isConnected =
+      (infoEx.SensorStatus & SENSOR_STATUS.BIT_CONNECTED) !== 0;
+    const isPreoperate =
+      (infoEx.SensorStatus & SENSOR_STATUS.BIT_PREOPERATE) !== 0;
+    const isWrongSensor =
+      (infoEx.SensorStatus & SENSOR_STATUS.BIT_WRONGSENSOR) !== 0;
+    const isSensorStateKnown =
+      (infoEx.SensorStatus & SENSOR_STATUS.BIT_SENSORSTATEKNOWN) !== 0;
+
     // connection states
     let connectionState = "DISCONNECTED";
     if (isConnected) connectionState = "OPERATE";
@@ -687,7 +723,8 @@ function checkPortStatus(handle, port) {
   }
 }
 
-function parseDeviceInfoFromDPP(dpp, port) { // direct parameter page 1
+function parseDeviceInfoFromDPP(dpp, port) {
+  // direct parameter page 1
   try {
     if (!dpp || dpp.length < 16) {
       return null;
@@ -753,7 +790,9 @@ function scanMasterPorts(handle) {
             actualVendorName = `Vendor_${portState.deviceInfo.vendorId}`;
           }
         } catch (e) {
-          console.log(`   Debug: Could not read vendor name for port ${portNumber}: ${e.message}`);
+          console.log(
+            `   Debug: Could not read vendor name for port ${portNumber}: ${e.message}`
+          );
           actualVendorName = `Vendor_${portState.deviceInfo.vendorId}`;
         }
 
@@ -763,7 +802,9 @@ function scanMasterPorts(handle) {
             actualDeviceName = `Device_${portState.deviceInfo.deviceId}`;
           }
         } catch (e) {
-          console.log(`   Debug: Could not read device name for port ${portNumber}: ${e.message}`);
+          console.log(
+            `   Debug: Could not read device name for port ${portNumber}: ${e.message}`
+          );
           actualDeviceName = `Device_${portState.deviceInfo.deviceId}`;
         }
 
@@ -773,7 +814,7 @@ function scanMasterPorts(handle) {
         console.log(
           `Port ${portNumber}: Found ${actualVendorName} ${actualDeviceName}`
         );
-        
+
         connectedDevices.push({
           ...portState.deviceInfo,
           status: status,
@@ -784,7 +825,9 @@ function scanMasterPorts(handle) {
     }
   }
 
-  console.log(`Scan complete: Found ${connectedDevices.length} connected devices`);
+  console.log(
+    `Scan complete: Found ${connectedDevices.length} connected devices`
+  );
   return connectedDevices;
 }
 
@@ -950,7 +993,9 @@ function readDeviceName(handle, port) {
     const result = param.data.toString("ascii").replace(/\0/g, "").trim();
     return result && result.length > 0 ? result : "Unknown Device";
   } catch (error) {
-    console.log(`   Debug: APPLICATION_SPECIFIC_NAME not available for port ${port}: ${error.message}`);
+    console.log(
+      `   Debug: APPLICATION_SPECIFIC_NAME not available for port ${port}: ${error.message}`
+    );
     return "Unknown Device";
   }
 }
@@ -965,7 +1010,9 @@ function readVendorName(handle, port) {
     const result = param.data.toString("ascii").replace(/\0/g, "").trim();
     return result && result.length > 0 ? result : "Unknown Vendor";
   } catch (error) {
-    console.log(`   Debug: VENDOR_NAME not available for port ${port}: ${error.message}`);
+    console.log(
+      `   Debug: VENDOR_NAME not available for port ${port}: ${error.message}`
+    );
     return "Unknown Vendor";
   }
 }
@@ -980,7 +1027,9 @@ function readProductName(handle, port) {
     const result = param.data.toString("ascii").replace(/\0/g, "").trim();
     return result && result.length > 0 ? result : "Unknown Product";
   } catch (error) {
-    console.log(`   Debug: PRODUCT_NAME not available for port ${port}: ${error.message}`);
+    console.log(
+      `   Debug: PRODUCT_NAME not available for port ${port}: ${error.message}`
+    );
     return "Unknown Product";
   }
 }
@@ -995,7 +1044,9 @@ function readSerialNumber(handle, port) {
     const result = param.data.toString("ascii").replace(/\0/g, "").trim();
     return result && result.length > 0 ? result : "";
   } catch (error) {
-    console.log(`   Debug: SERIAL_NUMBER not available for port ${port}: ${error.message}`);
+    console.log(
+      `   Debug: SERIAL_NUMBER not available for port ${port}: ${error.message}`
+    );
     return "";
   }
 }
@@ -1083,43 +1134,6 @@ function continueBlob(handle, port, status) {
 }
 
 // ============================================================================
-// STREAMING FUNCTIONS
-// ============================================================================
-
-function streamDeviceData(handle, port, interval, callback) {
-  const deviceInfo = getConnectedDeviceInfo(handle, port);
-
-  console.log(
-    `Starting data stream from IO-Link Device/Sensor on port ${port}: ${deviceInfo?.vendorName} ${deviceInfo?.deviceName}`
-  );
-
-  let running = true;
-  const intervalId = setInterval(() => {
-    if (!running) {
-      clearInterval(intervalId);
-      return;
-    }
-    try {
-      const data = readProcessData(handle, port);
-      callback(null, {
-        ...data,
-        deviceInfo: deviceInfo,
-      });
-    } catch (err) {
-      callback(err);
-      running = false;
-      clearInterval(intervalId);
-    }
-  }, interval);
-
-  return () => {
-    running = false;
-    clearInterval(intervalId);
-    console.log(`Stopped streaming from IO-Link Device/Sensor on port ${port}`);
-  };
-}
-
-// ============================================================================
 // HIGH-LEVEL DISCOVERY FUNCTIONS
 // ============================================================================
 
@@ -1148,7 +1162,7 @@ async function discoverAllDevices() {
       handle = connect(master.name);
       console.log(`Connected to IO-Link Master: ${master.name}`);
 
-      const masterState = await initializeMaster(handle, master.name);  // Configure ports
+      const masterState = await initializeMaster(handle, master.name); // Configure ports
       const connectedDevices = scanMasterPorts(handle); // Find sensors
 
       topology.masters.push({
@@ -1205,6 +1219,177 @@ function disconnectAllMasters(topology) {
       );
     }
   });
+}
+
+// ============================================================================
+// NATIVE STREAMING FUNCTIONS
+// ============================================================================
+
+function startNativeStreaming(handle, port, samplesPerSecond, bufferSizeBytes) {
+  // Calculate timing parameters based on documentation
+  const intervalMicroseconds = Math.floor(1000000 / samplesPerSecond); // Convert to microseconds
+  const loggingMode = 0; // Time driven mode (0 = time-driven, 1 = cycle synchron)
+  const sampleTimeRef = ref.alloc(DWORD, intervalMicroseconds);
+
+  console.log(
+    `Starting native data logging on port ${port}: ${samplesPerSecond} Hz (${intervalMicroseconds}μs interval), buffer: ${bufferSizeBytes} bytes`
+  );
+
+  // Start native data logging in buffer
+  // IOL_StartDataLoggingInBuffer(Handle, Port, MemorySize, LoggingMode, pSampleTime)
+  const result = iolinkDll.IOL_StartDataLoggingInBuffer(
+    handle,
+    port - 1, // Convert to 0-based indexing
+    bufferSizeBytes, // MemorySize
+    loggingMode, // LoggingMode (0 = time-driven)
+    sampleTimeRef // pSampleTime (pointer to DWORD)
+  );
+
+  if (result !== RETURN_CODES.RETURN_OK) {
+    throw new Error(`Failed to start native data logging: ${result}`);
+  }
+
+  const actualSampleTime = sampleTimeRef.deref();
+  const actualSampleRate =
+    actualSampleTime > 0 ? 1000000 / actualSampleTime : 0;
+
+  console.log(`Native data logging started successfully on port ${port}`);
+  console.log(`Requested: ${intervalMicroseconds}μs (${samplesPerSecond} Hz)`);
+  console.log(
+    `Actual: ${actualSampleTime}μs (${actualSampleRate.toFixed(1)} Hz)`
+  );
+  return result;
+}
+function stopNativeStreaming(handle, port) {
+  console.log(`Stopping native data logging on port ${port}`);
+
+  // IOL_StopDataLogging(Handle) - no port parameter according to documentation
+  const result = iolinkDll.IOL_StopDataLogging(handle);
+
+  if (result !== RETURN_CODES.RETURN_OK) {
+    throw new Error(`Failed to stop native data logging: ${result}`);
+  }
+
+  console.log(`Native data logging stopped successfully on port ${port}`);
+  return result;
+}
+function readNativeLoggingBuffer(handle, port, bufferSize = 8192) {
+  const buffer = Buffer.alloc(bufferSize);
+  const bufferSizeRef = ref.alloc(LONG, bufferSize);
+  const statusRef = ref.alloc(DWORD);
+
+  // IOL_ReadLoggingBuffer(Handle, pBufferSize, pData, pStatus)
+  const result = iolinkDll.IOL_ReadLoggingBuffer(
+    handle,
+    bufferSizeRef, // pointer to buffer size (in/out parameter)
+    buffer, // data buffer
+    statusRef // status pointer
+  );
+
+  if (result !== RETURN_CODES.RETURN_OK) {
+    throw new Error(`Failed to read logging buffer: ${result}`);
+  }
+
+  const actualBytesRead = bufferSizeRef.deref();
+  const status = statusRef.deref();
+
+  // Decode status bits
+  const isRunning = (status & 1) !== 0; // LOGGING_STATUS_RUNNING
+  const hasMoreData = (status & 2) !== 0; // LOGGING_STATUS_AVAILABLE
+  const overrun = (status & 4) !== 0; // LOGGING_STATUS_OVERRUN
+
+  if (actualBytesRead === 0) {
+    return {
+      data: null,
+      bytesRead: 0,
+      samples: [],
+      status: { isRunning, hasMoreData, overrun },
+    };
+  }
+
+  // Debug: Show raw buffer content for analysis
+  console.log(
+    `   Raw buffer (${actualBytesRead} bytes): ${buffer
+      .slice(0, Math.min(actualBytesRead, 32))
+      .toString("hex")}`
+  );
+
+  // Parse the buffer - simplified approach based on actual data
+  const samples = [];
+
+  // Analyze the 11-byte structure we're consistently seeing
+  if (actualBytesRead === 11) {
+    console.log(`   Analyzing 11-byte structure:`);
+    console.log(`   Bytes 0-1: ${buffer.slice(0, 2).toString("hex")} (header)`);
+    console.log(
+      `   Bytes 2-7: ${buffer.slice(2, 8).toString("hex")} (sensor data)`
+    );
+    console.log(
+      `   Bytes 8-10: ${buffer.slice(8, 11).toString("hex")} (status)`
+    );
+
+    // Extract the sensor data (appears to be at bytes 2-7)
+    const sensorData = buffer.slice(2, 8);
+    const timestamp = Date.now();
+
+    samples.push({
+      timestamp: timestamp,
+      inputData: sensorData,
+      outputData: Buffer.alloc(0),
+      inputLength: sensorData.length,
+      outputLength: 0,
+      inputValid: true,
+      rawBuffer: buffer.slice(0, actualBytesRead),
+    });
+
+    console.log(`   Extracted sample: ${sensorData.toString("hex")}`);
+  } else {
+    // For other buffer sizes, try to find sensor data pattern
+    console.log(`   Searching for sensor data in ${actualBytesRead} bytes`);
+
+    // Look for our known sensor data pattern
+    let offset = 0;
+    while (offset < actualBytesRead - 5) {
+      // Check if we have enough bytes left for sensor data
+      if (offset + 6 <= actualBytesRead) {
+        const potentialData = buffer.slice(offset, offset + 6);
+
+        // If this looks like sensor data (starts with 0x7f), extract it
+        if (
+          potentialData[0] === 0x7f ||
+          offset === 0 ||
+          actualBytesRead - offset === 6
+        ) {
+          const timestamp = Date.now();
+
+          samples.push({
+            timestamp: timestamp,
+            inputData: potentialData,
+            outputData: Buffer.alloc(0),
+            inputLength: potentialData.length,
+            outputLength: 0,
+            inputValid: true,
+            rawBuffer: buffer.slice(0, actualBytesRead),
+          });
+
+          console.log(
+            `   Found sample at offset ${offset}: ${potentialData.toString(
+              "hex"
+            )}`
+          );
+          break;
+        }
+      }
+      offset++;
+    }
+  }
+
+  return {
+    data: buffer.slice(0, actualBytesRead),
+    bytesRead: actualBytesRead,
+    samples: samples,
+    status: { isRunning, hasMoreData, overrun },
+  };
 }
 
 // ============================================================================
@@ -1281,13 +1466,15 @@ function getConnectedDeviceInfo(handle, port) {
     }
 
     // Use fallbacks only if we get default values
-    const finalVendorName = vendorName !== "Unknown Vendor" 
-      ? vendorName 
-      : `Vendor_${vendorId.toString(16).toUpperCase()}`;
-      
-    const finalDeviceName = deviceName !== "Unknown Device" 
-      ? deviceName 
-      : `Device_${deviceId.toString(16).toUpperCase()}`;
+    const finalVendorName =
+      vendorName !== "Unknown Vendor"
+        ? vendorName
+        : `Vendor_${vendorId.toString(16).toUpperCase()}`;
+
+    const finalDeviceName =
+      deviceName !== "Unknown Device"
+        ? deviceName
+        : `Device_${deviceId.toString(16).toUpperCase()}`;
 
     return {
       port: port,
@@ -1343,8 +1530,10 @@ module.exports = {
   readBlob,
   writeBlob,
 
-  // Streaming Function
-  streamDeviceData,
+  // Native Streaming Functions
+  startNativeStreaming,
+  stopNativeStreaming,
+  readNativeLoggingBuffer,
 
   // High-Level Functions
   discoverAllDevices,
