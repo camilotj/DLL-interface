@@ -2,12 +2,14 @@
   "name": "tmg-iolink-interface",
   "version": "1.0.0",
   "description": "Node.js interface for TMG IO-Link USB Master V2 DLL",
-  "main": "src/server.js",
+  "main": "dist/server.js",
   "scripts": {
-    "start": "node src/server.js",
-    "dev": "nodemon src/server.js",
-    "test": "node test.js",
-    "demo": "node index.js"
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "dev": "ts-node-dev --respawn src/server.ts",
+    "test": "ts-node test.ts",
+    "demo": "ts-node index.ts",
+    "type-check": "tsc --noEmit"
   },
   "keywords": [
     "io-link",
@@ -33,6 +35,16 @@
     "socket.io": "^4.8.1"
   },
   "devDependencies": {
-    "nodemon": "^3.1.10"
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.25",
+    "@types/ffi-napi": "^4.0.10",
+    "@types/morgan": "^1.9.9",
+    "@types/node": "^20.11.0",
+    "@types/ref-napi": "^3.0.12",
+    "@types/socket.io": "^3.0.1",
+    "nodemon": "^3.1.10",
+    "ts-node": "^10.9.2",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.3.3"
   }
 }
