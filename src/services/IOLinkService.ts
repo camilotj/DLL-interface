@@ -2,21 +2,21 @@
  * IO-Link Service - TypeScript Port
  * Core service class that wraps the TMG DLL functionality
  * Extracted from the original iolink-interface.js
- * 
+ *
  * CRITICAL: Maintains exact behavior and method signatures from JavaScript version
  */
 
-import * as ffi from 'ffi-napi';
-import * as ref from 'ref-napi';
-import StructType from 'ref-struct-napi';
-import ArrayType from 'ref-array-napi';
-import logger from '../utils/logger';
+import * as ffi from "ffi-napi";
+import * as ref from "ref-napi";
+import StructType from "ref-struct-napi";
+import ArrayType from "ref-array-napi";
+import logger from "../utils/logger";
 import {
   RETURN_CODES,
   PORT_MODES,
   SENSOR_STATUS,
   PARAMETER_INDEX,
-} from '../utils/constants';
+} from "../utils/constants";
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -75,7 +75,7 @@ const TPortConfiguration = StructType({
 
 const iolinkDll = ffi.Library(
   __dirname +
-    '/../../TMG_USB_IO-Link_Interface_V2_DLL/Sample_x64/Sample_C/SimpleApplication/TMGIOLUSBIF20_64.dll',
+    "/../../TMG_USB_IO-Link_Interface_V2_DLL/Sample_x64/Sample_C/SimpleApplication/TMGIOLUSBIF20_64.dll",
   {
     // Core master functions
     IOL_GetUSBDevices: [LONG, [ref.refType(TDeviceIdentification), LONG]],
@@ -192,7 +192,10 @@ interface DeviceInfo {
 
 class IOLinkService {
   private masterStates: Map<number, MasterState>;
-  private globalMasterRegistry: Map<string, { handle: number; connected: boolean }>;
+  private globalMasterRegistry: Map<
+    string,
+    { handle: number; connected: boolean }
+  >;
 
   constructor() {
     this.masterStates = new Map();
@@ -205,7 +208,9 @@ class IOLinkService {
 
   private checkReturnCode(returnCode: number, operation: string): void {
     if (returnCode !== RETURN_CODES.RETURN_OK) {
-      const error: any = new Error(`${operation} failed with code: ${returnCode}`);
+      const error: any = new Error(
+        `${operation} failed with code: ${returnCode}`
+      );
       error.code = returnCode;
       throw error;
     }
@@ -213,43 +218,49 @@ class IOLinkService {
 
   private extractString(arrayField: any): string {
     try {
-      if (!arrayField) return 'Unknown';
+      if (!arrayField) return "Unknown";
       const buffer = Buffer.isBuffer(arrayField)
         ? arrayField
         : Buffer.from(arrayField);
       let length = 0;
       while (length < buffer.length && buffer[length] !== 0) length++;
-      return buffer.slice(0, length).toString('utf8').trim() || 'Unknown';
+      return buffer.slice(0, length).toString("utf8").trim() || "Unknown";
     } catch (e) {
-      return 'Unknown';
+      return "Unknown";
     }
   }
 
   private getVendorName(vendorId: number): string {
     const vendors: Record<number, string> = {
-      0x0001: 'SICK AG',
-      0x0002: 'Balluff',
-      0x0003: 'ifm electronic',
-      0x0004: 'Turck',
-      0x0005: 'Pepperl+Fuchs',
-      0x0006: 'OMRON',
-      0x0007: 'Baumer',
-      0x0008: 'Banner Engineering',
-      0x0009: 'Leuze electronic',
-      0x000a: 'Vendor_A',
+      0x0001: "SICK AG",
+      0x0002: "Balluff",
+      0x0003: "ifm electronic",
+      0x0004: "Turck",
+      0x0005: "Pepperl+Fuchs",
+      0x0006: "OMRON",
+      0x0007: "Baumer",
+      0x0008: "Banner Engineering",
+      0x0009: "Leuze electronic",
+      0x000a: "Vendor_A",
     };
     return vendors[vendorId] || `Vendor_${vendorId.toString(16).toUpperCase()}`;
   }
 
   private getDeviceName(vendorId: number, deviceId: number): string {
     const deviceMappings: Record<string, Record<string, string>> = {
-      '0x000A': {
-        '0x0A2B11': 'Temperature Sensor',
+      "0x000A": {
+        "0x0A2B11": "Temperature Sensor",
       },
     };
 
-    const vendorKey = `0x${vendorId.toString(16).toUpperCase().padStart(4, '0')}`;
-    const deviceKey = `0x${deviceId.toString(16).toUpperCase().padStart(6, '0')}`;
+    const vendorKey = `0x${vendorId
+      .toString(16)
+      .toUpperCase()
+      .padStart(4, "0")}`;
+    const deviceKey = `0x${deviceId
+      .toString(16)
+      .toUpperCase()
+      .padStart(6, "0")}`;
 
     if (deviceMappings[vendorKey] && deviceMappings[vendorKey][deviceKey]) {
       return deviceMappings[vendorKey][deviceKey];
@@ -273,10 +284,16 @@ class IOLinkService {
 
       return {
         port: port,
-        vendorId: `0x${vendorId.toString(16).toUpperCase().padStart(4, '0')}`,
-        deviceId: `0x${deviceId.toString(16).toUpperCase().padStart(6, '0')}`,
-        functionId: `0x${functionId.toString(16).toUpperCase().padStart(4, '0')}`,
-        revisionId: `0x${revisionId.toString(16).toUpperCase().padStart(2, '0')}`,
+        vendorId: `0x${vendorId.toString(16).toUpperCase().padStart(4, "0")}`,
+        deviceId: `0x${deviceId.toString(16).toUpperCase().padStart(6, "0")}`,
+        functionId: `0x${functionId
+          .toString(16)
+          .toUpperCase()
+          .padStart(4, "0")}`,
+        revisionId: `0x${revisionId
+          .toString(16)
+          .toUpperCase()
+          .padStart(2, "0")}`,
         vendorName: this.getVendorName(vendorId),
         deviceName: this.getDeviceName(vendorId, deviceId),
         processDataInputLength: pdInLength,
@@ -294,7 +311,7 @@ class IOLinkService {
 
   async discoverMasters(): Promise<DiscoveredMaster[]> {
     const maxDevices = 5;
-    logger.info('Searching for IO-Link Master devices...');
+    logger.info("Searching for IO-Link Master devices...");
 
     try {
       const structSize = (TDeviceIdentification as any).size;
@@ -326,8 +343,8 @@ class IOLinkService {
 
           if (
             master.name &&
-            master.name !== 'Unknown' &&
-            master.name.trim() !== ''
+            master.name !== "Unknown" &&
+            master.name.trim() !== ""
           ) {
             discoveredMasters.push(master);
             logger.info(`Found Master: ${master.name} (${master.productCode})`);
@@ -359,15 +376,21 @@ class IOLinkService {
         handle: handle,
         deviceName: deviceName,
         ports: new Map(),
-        initialized: true,
+        initialized: false,
         configurationComplete: false,
       };
 
       this.masterStates.set(handle, masterState);
       this.globalMasterRegistry.set(deviceName, { handle, connected: true });
 
+      // Reset master state first (clean initialization)
+      await this.resetMaster(handle);
+
+      // Initialize the master (configure ports for IO-Link operation)
+      await this.initializeMaster(handle, deviceName);
+
       logger.info(
-        `Successfully connected to master ${deviceName} with handle ${handle}`
+        `Successfully connected and initialized master ${deviceName} with handle ${handle}`
       );
       return handle;
     } catch (error: any) {
@@ -375,6 +398,164 @@ class IOLinkService {
         `Failed to connect to master ${deviceName}: ${error.message}`
       );
       throw error;
+    }
+  }
+
+  async resetMaster(handle: number): Promise<boolean> {
+    logger.info(`Resetting master state for handle ${handle}...`);
+
+    try {
+      // Clear all port configurations first
+      for (let port = 0; port < 2; port++) {
+        // 0-based for DLL
+        try {
+          const clearConfig = new (TPortConfiguration as any)();
+          // Set all fields to 0 (like memset in TMG sample)
+          clearConfig.PortModeDetails = 0;
+          clearConfig.TargetMode = 0;
+          clearConfig.CRID = 0;
+          clearConfig.DSConfigure = 0;
+          clearConfig.Synchronisation = 0;
+          clearConfig.FunctionID[0] = 0;
+          clearConfig.FunctionID[1] = 0;
+          clearConfig.InspectionLevel = 0;
+          clearConfig.VendorID[0] = 0;
+          clearConfig.VendorID[1] = 0;
+          clearConfig.DeviceID[0] = 0;
+          clearConfig.DeviceID[1] = 0;
+          clearConfig.DeviceID[2] = 0;
+          clearConfig.InputLength = 0;
+          clearConfig.OutputLength = 0;
+
+          const clearResult = iolinkDll.IOL_SetPortConfig(
+            handle,
+            port,
+            clearConfig.ref()
+          );
+          logger.debug(`Port ${port + 1}: Reset result = ${clearResult}`);
+        } catch (portError: any) {
+          logger.debug(`Port ${port + 1}: Reset failed - ${portError.message}`);
+        }
+      }
+
+      logger.info(`Master reset complete, waiting for stabilization...`);
+      // Wait for hardware stabilization after reset
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      return true;
+    } catch (error: any) {
+      logger.error(`Master reset failed: ${error.message}`);
+      return false;
+    }
+  }
+
+  async initializeMaster(
+    handle: number,
+    deviceName: string,
+    maxPorts: number = 2
+  ): Promise<void> {
+    logger.info(`Initializing IO-Link Master: ${deviceName}`);
+
+    const masterState = this.masterStates.get(handle);
+    if (!masterState) {
+      throw new Error(`Master state not found for handle ${handle}`);
+    }
+
+    logger.info(`Configuring ${maxPorts} ports for IO-Link operation...`);
+
+    for (let port = 1; port <= maxPorts; port++) {
+      try {
+        const configSuccess = await this.configurePortForIOLink(handle, port);
+        if (configSuccess) {
+          logger.info(`Port ${port}: Configured for IO-Link operation`);
+        } else {
+          logger.debug(
+            `Port ${port}: Configuration failed or port does not exist`
+          );
+        }
+      } catch (error: any) {
+        logger.error(`Port ${port}: Configuration error: ${error.message}`);
+      }
+    }
+
+    masterState.initialized = true;
+    masterState.configurationComplete = true;
+
+    logger.info(
+      "Waiting for port stabilization (IO-Link timing requirements)..."
+    );
+    await new Promise((resolve) => setTimeout(resolve, 5000));
+
+    logger.info("Additional device detection wait...");
+    await new Promise((resolve) => setTimeout(resolve, 3000));
+
+    logger.info(`Master ${deviceName} initialization complete`);
+  }
+
+  async configurePortForIOLink(handle: number, port: number): Promise<boolean> {
+    try {
+      const zeroBasedPort = port - 1; // 0-based for DLL
+
+      logger.debug(`Port ${port}: Checking current configuration state...`);
+
+      // Get current port configuration
+      const currentConfig = new (TPortConfiguration as any)();
+      const checkResult = iolinkDll.IOL_GetPortConfig(
+        handle,
+        zeroBasedPort,
+        currentConfig.ref()
+      );
+
+      if (checkResult === RETURN_CODES.RETURN_WRONG_PARAMETER) {
+        return false; // Port doesn't exist
+      }
+
+      logger.debug(
+        `Port ${port}: Current config - TargetMode=${
+          currentConfig.TargetMode
+        }, CRID=0x${currentConfig.CRID.toString(16)}`
+      );
+
+      // Create IO-Link port configuration
+      const portConfig = new (TPortConfiguration as any)();
+      portConfig.PortModeDetails = 0;
+      portConfig.TargetMode = PORT_MODES.SM_MODE_IOLINK_OPERATE;
+      portConfig.CRID = 0x11;
+      portConfig.DSConfigure = 0;
+      portConfig.Synchronisation = 0;
+      portConfig.FunctionID[0] = 0;
+      portConfig.FunctionID[1] = 0;
+      portConfig.InspectionLevel = 0; // SM_VALIDATION_MODE_NONE
+      portConfig.VendorID[0] = 0;
+      portConfig.VendorID[1] = 0;
+      portConfig.DeviceID[0] = 0;
+      portConfig.DeviceID[1] = 0;
+      portConfig.DeviceID[2] = 0;
+      portConfig.InputLength = 32;
+      portConfig.OutputLength = 32;
+
+      logger.debug(
+        `Port ${port}: Setting config - CRID=0x${portConfig.CRID.toString(
+          16
+        )}, TargetMode=${portConfig.TargetMode}, InspectionLevel=${
+          portConfig.InspectionLevel
+        }`
+      );
+
+      const result = iolinkDll.IOL_SetPortConfig(
+        handle,
+        zeroBasedPort,
+        portConfig.ref()
+      );
+
+      this.checkReturnCode(result, `Configure port ${port}`);
+      logger.debug(
+        `Port ${port}: IOL_SetPortConfig result = ${result} (SUCCESS)`
+      );
+
+      return true;
+    } catch (error: any) {
+      logger.error(`Failed to configure port ${port}: ${error.message}`);
+      return false;
     }
   }
 
@@ -468,10 +649,10 @@ class IOLinkService {
       const isWrongSensor =
         (infoEx.SensorStatus & SENSOR_STATUS.BIT_WRONGSENSOR) !== 0;
 
-      let connectionState = 'DISCONNECTED';
-      if (isConnected) connectionState = 'OPERATE';
-      else if (isPreoperate) connectionState = 'PREOPERATE';
-      else if (isWrongSensor) connectionState = 'WRONG_DEVICE';
+      let connectionState = "DISCONNECTED";
+      if (isConnected) connectionState = "OPERATE";
+      else if (isPreoperate) connectionState = "PREOPERATE";
+      else if (isWrongSensor) connectionState = "WRONG_DEVICE";
 
       return {
         port: port,
@@ -496,7 +677,11 @@ class IOLinkService {
   // PROCESS DATA COMMUNICATION
   // ============================================================================
 
-  async readProcessData(handle: number, port: number, maxLength: number = 32): Promise<ProcessDataRead> {
+  async readProcessData(
+    handle: number,
+    port: number,
+    maxLength: number = 32
+  ): Promise<ProcessDataRead> {
     try {
       const buffer = Buffer.alloc(maxLength);
       const length = ref.alloc(DWORD, maxLength) as any;
@@ -526,7 +711,11 @@ class IOLinkService {
     }
   }
 
-  async writeProcessData(handle: number, port: number, data: Buffer | number[]): Promise<ProcessDataWrite> {
+  async writeProcessData(
+    handle: number,
+    port: number,
+    data: Buffer | number[]
+  ): Promise<ProcessDataWrite> {
     try {
       const buffer = data instanceof Buffer ? data : Buffer.from(data);
       const result = iolinkDll.IOL_WriteOutputs(

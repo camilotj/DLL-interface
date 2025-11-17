@@ -1,21 +1,21 @@
 /**
  * Device Manager Service - TypeScript Port
  * Manages device lifecycle, state, and high-level operations
- * 
+ *
  * CRITICAL: Maintains exact behavior and device management logic from JavaScript version
  */
 
-import IOLinkService from './IOLinkService';
-import Device from '../models/Device';
-import Parameter from '../models/Parameter';
-import logger from '../utils/logger';
+import IOLinkService from "./IOLinkService";
+import Device from "../models/Device";
+import Parameter from "../models/Parameter";
+import logger from "../utils/logger";
 import {
   CONNECTION_STATES,
   PARAMETER_INDEX,
   STANDARD_PARAMETERS,
   LIMITS,
   isValidPort,
-} from '../utils/constants';
+} from "../utils/constants";
 
 interface MasterInfo {
   handle: number;
@@ -61,12 +61,12 @@ class DeviceManager {
 
   async discoverMasters(): Promise<any[]> {
     try {
-      logger.info('Discovering IO-Link masters...');
+      logger.info("Discovering IO-Link masters...");
       const masters = await this.iolinkService.discoverMasters();
       logger.info(`Found ${masters.length} IO-Link masters`);
       return masters;
     } catch (error: any) {
-      logger.error('Failed to discover masters:', error.message);
+      logger.error("Failed to discover masters:", error.message);
       throw error;
     }
   }
@@ -165,7 +165,10 @@ class DeviceManager {
   // DEVICE DISCOVERY AND MANAGEMENT
   // ============================================================================
 
-  async startDeviceScanning(masterHandle: number, intervalMs: number = 5000): Promise<void> {
+  async startDeviceScanning(
+    masterHandle: number,
+    intervalMs: number = 10000
+  ): Promise<void> {
     // Stop existing scanning
     this.stopDeviceScanning(masterHandle);
 
@@ -244,7 +247,11 @@ class DeviceManager {
     }
   }
 
-  async handleNewDeviceDetected(masterHandle: number, port: number, status: PortStatus): Promise<Device | undefined> {
+  async handleNewDeviceDetected(
+    masterHandle: number,
+    port: number,
+    status: PortStatus
+  ): Promise<Device | undefined> {
     try {
       logger.info(`New device detected on master ${masterHandle} port ${port}`);
 
@@ -286,7 +293,10 @@ class DeviceManager {
     }
   }
 
-  async handleDeviceDisconnected(deviceKey: string, device: Device): Promise<void> {
+  async handleDeviceDisconnected(
+    deviceKey: string,
+    device: Device
+  ): Promise<void> {
     logger.info(
       `Device disconnected: ${device.vendorName} ${device.deviceName} on port ${device.port}`
     );
@@ -306,7 +316,10 @@ class DeviceManager {
     }, 30000);
   }
 
-  async initializeDeviceParameters(deviceKey: string, device: Device): Promise<void> {
+  async initializeDeviceParameters(
+    deviceKey: string,
+    device: Device
+  ): Promise<void> {
     const parameterMap = new Map<string, Parameter>();
 
     // Add standard IO-Link parameters
@@ -339,28 +352,28 @@ class DeviceManager {
       const results = await Promise.allSettled(tasks);
 
       const metadata: any = {};
-      if (results[0].status === 'fulfilled') {
+      if (results[0].status === "fulfilled") {
         metadata.serialNumber = (results[0].value as any).data
-          .toString('ascii')
-          .replace(/\0/g, '')
+          .toString("ascii")
+          .replace(/\0/g, "")
           .trim();
       }
-      if (results[1].status === 'fulfilled') {
+      if (results[1].status === "fulfilled") {
         metadata.firmwareVersion = (results[1].value as any).data
-          .toString('ascii')
-          .replace(/\0/g, '')
+          .toString("ascii")
+          .replace(/\0/g, "")
           .trim();
       }
-      if (results[2].status === 'fulfilled') {
+      if (results[2].status === "fulfilled") {
         metadata.hardwareVersion = (results[2].value as any).data
-          .toString('ascii')
-          .replace(/\0/g, '')
+          .toString("ascii")
+          .replace(/\0/g, "")
           .trim();
       }
-      if (results[3].status === 'fulfilled') {
+      if (results[3].status === "fulfilled") {
         metadata.applicationName = (results[3].value as any).data
-          .toString('ascii')
-          .replace(/\0/g, '')
+          .toString("ascii")
+          .replace(/\0/g, "")
           .trim();
       }
 
@@ -442,7 +455,11 @@ class DeviceManager {
     return result;
   }
 
-  async writeProcessData(masterHandle: number, port: number, data: Buffer | number[]): Promise<any> {
+  async writeProcessData(
+    masterHandle: number,
+    port: number,
+    data: Buffer | number[]
+  ): Promise<any> {
     const device = this.getDevice(masterHandle, port);
 
     if (!device.isReady()) {
@@ -466,7 +483,11 @@ class DeviceManager {
   // PARAMETER OPERATIONS
   // ============================================================================
 
-  async readDeviceParameter(deviceKey: string, index: number, subIndex: number = 0): Promise<any> {
+  async readDeviceParameter(
+    deviceKey: string,
+    index: number,
+    subIndex: number = 0
+  ): Promise<any> {
     const device = this.getDeviceByKey(deviceKey);
     const parameterMap = this.parameters.get(deviceKey);
 
@@ -506,7 +527,12 @@ class DeviceManager {
     return result;
   }
 
-  async writeDeviceParameter(deviceKey: string, index: number, subIndex: number = 0, value: any): Promise<any> {
+  async writeDeviceParameter(
+    deviceKey: string,
+    index: number,
+    subIndex: number = 0,
+    value: any
+  ): Promise<any> {
     const device = this.getDeviceByKey(deviceKey);
     const parameterMap = this.parameters.get(deviceKey);
 
@@ -526,7 +552,7 @@ class DeviceManager {
       const validation = parameter.validateValue(value);
       if (!validation.valid) {
         throw new Error(
-          `Parameter validation failed: ${validation.errors.join(', ')}`
+          `Parameter validation failed: ${validation.errors.join(", ")}`
         );
       }
 
@@ -564,7 +590,10 @@ class DeviceManager {
   // UTILITY METHODS
   // ============================================================================
 
-  async validateDeviceConnection(masterHandle: number, port: number): Promise<Device> {
+  async validateDeviceConnection(
+    masterHandle: number,
+    port: number
+  ): Promise<Device> {
     const device = this.getDevice(masterHandle, port);
     if (!device.isInCommunication()) {
       throw new Error(
@@ -585,7 +614,7 @@ class DeviceManager {
   }
 
   async cleanup(): Promise<void> {
-    logger.info('Cleaning up DeviceManager...');
+    logger.info("Cleaning up DeviceManager...");
 
     // Stop all scanning intervals
     for (const [masterHandle, intervalId] of this.scanIntervals) {
@@ -610,7 +639,7 @@ class DeviceManager {
     this.parameters.clear();
     this.connectedMasters.clear();
 
-    logger.info('DeviceManager cleanup completed');
+    logger.info("DeviceManager cleanup completed");
   }
 }
 

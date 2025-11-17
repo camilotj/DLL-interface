@@ -1,14 +1,14 @@
 /**
  * Device Routes - TypeScript Port
  * Express routes for device and master management operations
- * 
+ *
  * CRITICAL: Maintains exact routing behavior from JavaScript version
  */
 
-import express, { Router } from 'express';
+import express, { Router } from "express";
 
 // Import controllers
-import * as deviceController from '../controllers/deviceController';
+import * as deviceController from "../controllers/deviceController";
 
 // Import middleware
 import {
@@ -16,12 +16,12 @@ import {
   validateMasterHandle,
   validateDeviceId,
   validateQueryParams,
-} from '../middleware/validation';
+} from "../middleware/validation";
 import {
   requireReadAccess,
   requireAdminAccess,
   authorizeDeviceAccess,
-} from '../middleware/auth';
+} from "../middleware/auth";
 
 const router: Router = express.Router();
 
@@ -33,14 +33,14 @@ const router: Router = express.Router();
  * GET /api/v1/masters
  * Discover available IO-Link masters
  */
-router.get('/masters', requireReadAccess, deviceController.discoverMasters);
+router.get("/masters", requireReadAccess, deviceController.discoverMasters);
 
 /**
  * GET /api/v1/masters/connected
  * Get list of connected masters
  */
 router.get(
-  '/masters/connected',
+  "/masters/connected",
   requireReadAccess,
   deviceController.getConnectedMasters
 );
@@ -51,7 +51,7 @@ router.get(
  * Body: { deviceName: "TMG USB IO-Link Master V2" }
  */
 router.post(
-  '/masters/connect',
+  "/masters/connect",
   requireAdminAccess,
   validateMasterConnection,
   deviceController.connectMaster
@@ -62,7 +62,7 @@ router.post(
  * Disconnect from a specific master
  */
 router.delete(
-  '/masters/:masterHandle',
+  "/masters/:masterHandle",
   requireAdminAccess,
   validateMasterHandle,
   deviceController.disconnectMaster
@@ -77,19 +77,14 @@ router.delete(
  * Get list of all discovered devices
  * Query params: ?includeDisconnected=true&limit=50&offset=0
  */
-router.get(
-  '/devices',
-  requireReadAccess,
-  validateQueryParams,
-  deviceController.listDevices
-);
+router.get("/devices", requireReadAccess, deviceController.listDevices);
 
 /**
  * GET /api/v1/devices/summary
  * Get system-wide device summary
  */
 router.get(
-  '/devices/summary',
+  "/devices/summary",
   requireReadAccess,
   deviceController.getDeviceSummary
 );
@@ -99,7 +94,7 @@ router.get(
  * Get system health information
  */
 router.get(
-  '/devices/health',
+  "/devices/health",
   requireReadAccess,
   deviceController.getSystemHealth
 );
@@ -108,7 +103,7 @@ router.get(
  * POST /api/v1/devices/scan
  * Trigger manual device scan on all connected masters
  */
-router.post('/devices/scan', requireReadAccess, deviceController.scanDevices);
+router.post("/devices/scan", requireReadAccess, deviceController.scanDevices);
 
 // ============================================================================
 // SPECIFIC DEVICE ROUTES
@@ -119,7 +114,7 @@ router.post('/devices/scan', requireReadAccess, deviceController.scanDevices);
  * Get specific device information
  */
 router.get(
-  '/devices/:masterHandle/:deviceId',
+  "/devices/:masterHandle/:deviceId",
   requireReadAccess,
   validateMasterHandle,
   validateDeviceId,
@@ -132,7 +127,7 @@ router.get(
  * Get device connection status
  */
 router.get(
-  '/devices/:masterHandle/:deviceId/status',
+  "/devices/:masterHandle/:deviceId/status",
   requireReadAccess,
   validateMasterHandle,
   validateDeviceId,
@@ -145,7 +140,7 @@ router.get(
  * Get detailed device information including metadata
  */
 router.get(
-  '/devices/:masterHandle/:deviceId/info',
+  "/devices/:masterHandle/:deviceId/info",
   requireReadAccess,
   validateMasterHandle,
   validateDeviceId,
