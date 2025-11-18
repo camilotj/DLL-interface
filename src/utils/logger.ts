@@ -1,8 +1,7 @@
 /**
- * Logger Utility - TypeScript Port
+ * Logger Utility
  * Centralized logging for the IO-Link backend
  * 
- * CRITICAL: Maintains exact logging behavior from JavaScript version
  */
 
 import { format } from 'util';

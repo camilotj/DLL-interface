@@ -1,8 +1,7 @@
 /**
- * Device Manager Service - TypeScript Port
+ * Device Manager Service
  * Manages device lifecycle, state, and high-level operations
  *
- * CRITICAL: Maintains exact behavior and device management logic from JavaScript version
  */
 
 import IOLinkService from "./IOLinkService";

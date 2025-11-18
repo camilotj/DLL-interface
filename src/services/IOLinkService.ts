@@ -1,9 +1,8 @@
 /**
- * IO-Link Service - TypeScript Port
+ * IO-Link Service
  * Core service class that wraps the TMG DLL functionality
  * Extracted from the original iolink-interface.js
  *
- * CRITICAL: Maintains exact behavior and method signatures from JavaScript version
  */
 
 import * as ffi from "ffi-napi";

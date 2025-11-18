@@ -1,10 +1,8 @@
 /**
- * IO-Link Native Interface - TypeScript Port
+ * IO-Link Native Interface
  * Provides complete IO-Link Master and Device communication functionality
  * Following IEC 61131-9 specifications
  * 
- * CRITICAL: Struct layouts and FFI signatures must remain EXACTLY as in JavaScript version
- * to preserve native DLL communication behavior
  */
 
 import * as ffi from 'ffi-napi';

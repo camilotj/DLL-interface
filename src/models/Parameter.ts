@@ -1,8 +1,7 @@
 /**
- * Parameter Model - TypeScript Port
+ * Parameter Model
  * Represents an IO-Link device parameter with its properties and validation
  * 
- * CRITICAL: Maintains exact behavior and validation logic from JavaScript version
  */
 
 type ParameterAccess = 'r' | 'w' | 'rw';

@@ -1,8 +1,7 @@
 /**
- * Express Application Configuration - TypeScript Port
+ * Express Application Configuration
  * Main Express app setup with middleware and route configuration
  * 
- * CRITICAL: Maintains exact application behavior from JavaScript version
  */
 
 import express, { Application, Request, Response, NextFunction } from 'express';

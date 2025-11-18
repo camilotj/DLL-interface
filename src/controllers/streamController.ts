@@ -1,8 +1,7 @@
 /**
- * Stream Controller - TypeScript Port
+ * Stream Controller
  * Handles real-time streaming operations via WebSocket
  * 
- * CRITICAL: Maintains exact controller behavior from JavaScript version
  */
 
 import { Socket, Server as SocketIOServer } from 'socket.io';

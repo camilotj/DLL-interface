@@ -1,8 +1,7 @@
 /**
- * Device Routes - TypeScript Port
+ * Device Routes
  * Express routes for device and master management operations
  *
- * CRITICAL: Maintains exact routing behavior from JavaScript version
  */
 
 import express, { Router } from "express";

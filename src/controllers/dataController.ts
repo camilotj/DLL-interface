@@ -1,8 +1,7 @@
 /**
- * Data Controller - TypeScript Port
+ * Data Controller
  * Handles HTTP requests for process data and parameter operations
  * 
- * CRITICAL: Maintains exact controller behavior from JavaScript version
  */
 
 import { Request, Response } from 'express';

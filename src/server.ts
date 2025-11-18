@@ -1,8 +1,7 @@
 /**
- * Server Entry Point - TypeScript Port
+ * Server Entry Point
  * HTTP server startup with Socket.IO integration
  * 
- * CRITICAL: Maintains exact server behavior from JavaScript version
  */
 
 import http from 'http';

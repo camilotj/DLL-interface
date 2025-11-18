@@ -1,8 +1,7 @@
 /**
- * Authentication Middleware - TypeScript Port
+ * Authentication Middleware
  * Basic authentication and authorization for IO-Link API
  * 
- * CRITICAL: Maintains exact auth behavior from JavaScript version
  */
 
 import { Request, Response, NextFunction } from 'express';

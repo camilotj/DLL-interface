@@ -1,8 +1,7 @@
 /**
- * Stream Routes - TypeScript Port
+ * Stream Routes
  * Express routes for streaming and real-time operations
  * 
- * CRITICAL: Maintains exact routing behavior from JavaScript version
  */
 
 import express, { Router, Request, Response } from 'express';

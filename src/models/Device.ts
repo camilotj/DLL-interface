@@ -1,8 +1,7 @@
 /**
- * Device Model - TypeScript Port
+ * Device Model
  * Represents an IO-Link device with its properties and state
  * 
- * CRITICAL: Maintains exact behavior and data structure from JavaScript version
  */
 
 interface DeviceConstructorParams {

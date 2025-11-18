@@ -1,8 +1,7 @@
 /**
- * Device Controller - TypeScript Port
+ * Device Controller
  * Handles HTTP requests for device management operations
  *
- * CRITICAL: Maintains exact controller behavior from JavaScript version
  */
 
 import { Request, Response } from "express";

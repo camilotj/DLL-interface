@@ -1,8 +1,7 @@
 /**
- * Data Routes - TypeScript Port
+ * Data Routes
  * Express routes for process data and parameter operations
  * 
- * CRITICAL: Maintains exact routing behavior from JavaScript version
  */
 
 import express, { Router } from 'express';

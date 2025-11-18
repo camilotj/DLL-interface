@@ -1,8 +1,7 @@
 /**
- * Diagnostics Utility - TypeScript Port
+ * Diagnostics Utility
  * Diagnostic utilities for the IO-Link interface
  * 
- * CRITICAL: Maintains exact behavior from JavaScript version
  */
 
 // Placeholder for future diagnostic functionality

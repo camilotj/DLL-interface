@@ -1,8 +1,7 @@
 /**
- * Error Handler Middleware - TypeScript Port
+ * Error Handler Middleware
  * Centralized error handling for Express application
  * 
- * CRITICAL: Maintains exact error handling behavior from JavaScript version
  */
 
 import { Request, Response, NextFunction } from 'express';

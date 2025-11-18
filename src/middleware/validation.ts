@@ -1,8 +1,7 @@
 /**
- * Validation Middleware - TypeScript Port
+ * Validation Middleware
  * Request validation using Joi schemas
  *
- * CRITICAL: Maintains exact validation behavior from JavaScript version
  */
 
 import Joi from "joi";

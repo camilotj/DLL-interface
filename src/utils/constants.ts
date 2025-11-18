@@ -1,8 +1,7 @@
 /**
- * Constants - TypeScript Port
+ * Constants
  * All IO-Link related constants and enumerations
  * 
- * CRITICAL: Maintains exact constant values from JavaScript version
  */
 
 // ============================================================================
