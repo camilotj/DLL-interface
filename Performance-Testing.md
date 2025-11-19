@@ -16,14 +16,14 @@
 
 ## Findings
 
-### **Streaming Infrastructure Performance** ✅
+### **Streaming Infrastructure Performance**
 
 - **TMG Hardware**: Confirmed 100,000 Hz (10μs precision) native logging capability
 - **JavaScript Performance**: 9,200 reads/second maximum speed (0ms gaps between reads)
 - **Buffer Management**: "Latest sample only" strategy working optimally - real-time fresh data access
 - **Real-time Achievement**: 10μs fresh data access vs 230-1000ms stale polling (10,000-100,000x latency improvement)
 
-### **Sensor Configuration Analysis** 🔍
+### **Sensor Configuration Analysis**
 
 - **Measured effective throughput**: 0.8 Hz (2 samples / 2.5 s)
 - **Sensor configuration**: Parameter 13110 = 1 Hz Rectangle Wave, 50% duty cycle, 1.0 amplitude
@@ -95,14 +95,14 @@ setTimeout(() => {
 
 ## Short conclusion
 
-### **Streaming Infrastructure: Mission Accomplished** ✅
+### **Streaming Infrastructure: Mission Accomplished**
 
 - **TMG Hardware**: Proven 100,000 Hz capability with 10μs precision native logging
 - **JavaScript Software**: Validated 9,200 reads/second maximum performance with 0ms gaps
 - **Buffer Management**: Perfect real-time "latest sample only" strategy - no overruns, no data loss
 - **Real-time Achievement**: 10μs fresh data access vs 230-1000ms polling delays (up to 100,000x improvement)
 
-### **Sensor Configuration: Root Cause Identified** 🔍
+### **Sensor Configuration: Root Cause Identified**
 
 - **Not a limitation**: The 0.8 Hz rate is sensor configuration (Parameter 13110 = 1 Hz Rectangle Wave)
 - **System working as designed**: Sensor intentionally configured for 1 Hz output
