@@ -5,6 +5,7 @@
  */
 
 import { Socket, Server as SocketIOServer } from 'socket.io';
+import { Server as HTTPServer } from 'http';
 import { deviceManager } from './deviceController';
 import logger from '../utils/logger';
 import { LIMITS } from '../utils/constants';
@@ -91,6 +92,30 @@ export function handleConnection(socket: Socket, io: SocketIOServer): void {
   socket.on('disconnect', () => {
     handleDisconnection(socket);
   });
+}
+
+// ============================================================================
+// WEBSOCKET INITIALIZATION
+// ============================================================================
+
+/**
+ * Initialize WebSocket server
+ */
+export function initializeWebSocket(server: HTTPServer): SocketIOServer {
+  const io = new SocketIOServer(server, {
+    cors: {
+      origin: '*',
+      methods: ['GET', 'POST'],
+    },
+    transports: ['websocket', 'polling'],
+  });
+
+  io.on('connection', (socket: Socket) => {
+    handleConnection(socket, io);
+  });
+
+  logger.info('WebSocket server initialized');
+  return io;
 }
 
 // ============================================================================

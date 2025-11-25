@@ -1,12 +1,10 @@
 /**
- * Server Entry Point
- * HTTP server startup with Socket.IO integration
- *
+ * HTTP and WebSocket Server
+ * Main server entry point
  */
-import http from 'http';
-import { Server as SocketIOServer } from 'socket.io';
+import { Server } from 'http';
 import { app } from './app';
-declare const server: http.Server<typeof http.IncomingMessage, typeof http.ServerResponse>;
-declare const io: SocketIOServer<import("socket.io").DefaultEventsMap, import("socket.io").DefaultEventsMap, import("socket.io").DefaultEventsMap, any>;
-export { server, io, app };
+declare const server: Server;
+declare const io: import("socket.io").Server<import("socket.io").DefaultEventsMap, import("socket.io").DefaultEventsMap, import("socket.io").DefaultEventsMap, any>;
+export { server, app, io };
 //# sourceMappingURL=server.d.ts.map

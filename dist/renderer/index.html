@@ -13,8 +13,10 @@
         <div class="header-content">
             <h1>TMG IO-Link Interface</h1>
             <div class="header-info">
-                <span id="app-version" class="badge">v0.0.0</span>
-                <span id="connection-status" class="badge status-disconnected">Disconnected</span>
+                <div id="status" class="status status-info">
+                    <span class="status-message">Initializing...</span>
+                    <span class="status-time"></span>
+                </div>
             </div>
         </div>
     </header>
@@ -35,9 +37,6 @@
                 </button>
                 <button class="nav-item" data-view="data">
                     <span class="nav-label">Process Data</span>
-                </button>
-                <button class="nav-item" data-view="settings">
-                    <span class="nav-label">Settings</span>
                 </button>
             </nav>
         </aside>
@@ -61,15 +60,12 @@
                         <h3>Data Rate</h3>
                         <p class="stat-value" id="data-rate">0 Hz</p>
                     </div>
-                    <div class="stat-card">
-                        <h3>Server Status</h3>
-                        <p class="stat-value" id="server-status">Checking...</p>
-                    </div>
                 </div>
 
                 <div class="action-buttons">
-                    <button id="discover-btn" class="btn btn-primary">Discover Masters</button>
-                    <button id="refresh-btn" class="btn btn-secondary">Refresh</button>
+                    <button id="refresh-masters" class="btn btn-primary">Discover Masters</button>
+                    <button id="refresh-devices" class="btn btn-secondary">Refresh Devices</button>
+                    <button id="refresh-process-data" class="btn btn-secondary">Refresh Data</button>
                 </div>
 
                 <div class="log-section">
@@ -81,6 +77,7 @@
             <!-- Masters View -->
             <div id="masters-view" class="view">
                 <h2>IO-Link Masters</h2>
+                <!-- Required by renderer.ts -->
                 <div id="masters-list" class="list-container">
                     <p class="placeholder">Click "Discover Masters" to find connected devices</p>
                 </div>
@@ -89,6 +86,7 @@
             <!-- Devices View -->
             <div id="devices-view" class="view">
                 <h2>Connected Devices</h2>
+                <!-- Required by renderer.ts -->
                 <div id="devices-list" class="list-container">
                     <p class="placeholder">No devices connected</p>
                 </div>
@@ -97,26 +95,9 @@
             <!-- Process Data View -->
             <div id="data-view" class="view">
                 <h2>Process Data Monitor</h2>
-                <div id="process-data-container" class="data-monitor">
+                <!-- Required by renderer.ts -->
+                <div id="process-data" class="data-monitor">
                     <p class="placeholder">Select a device to monitor process data</p>
-                </div>
-            </div>
-
-            <!-- Settings View -->
-            <div id="settings-view" class="view">
-                <h2>Settings</h2>
-                <div class="settings-container">
-                    <div class="setting-group">
-                        <h3>Backend Server</h3>
-                        <p><strong>URL:</strong> <span id="server-url">Loading...</span></p>
-                        <p><strong>Platform:</strong> <span id="platform-info">Loading...</span></p>
-                    </div>
-                    <div class="setting-group">
-                        <h3>Application Info</h3>
-                        <p><strong>Electron:</strong> <span id="electron-version">Loading...</span></p>
-                        <p><strong>Node.js:</strong> <span id="node-version">Loading...</span></p>
-                        <p><strong>Chrome:</strong> <span id="chrome-version">Loading...</span></p>
-                    </div>
                 </div>
             </div>
         </section>

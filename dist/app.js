@@ -32,14 +32,7 @@ exports.app = app;
 // ============================================================================
 // Security headers
 app.use((0, helmet_1.default)({
-    contentSecurityPolicy: {
-        directives: {
-            defaultSrc: ["'self'"],
-            styleSrc: ["'self'", "'unsafe-inline'"],
-            scriptSrc: ["'self'"],
-            imgSrc: ["'self'", 'data:', 'https:'],
-        },
-    },
+    contentSecurityPolicy: false,
     crossOriginEmbedderPolicy: false, // Allow Socket.IO
 }));
 // CORS configuration

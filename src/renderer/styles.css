@@ -38,22 +38,48 @@ body {
 .header-info {
     display: flex;
     gap: 0.5rem;
+    align-items: center;
 }
 
-.badge {
-    padding: 0.25rem 0.75rem;
-    border-radius: 12px;
+/* Status Badge */
+.status {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
     font-size: 0.875rem;
     font-weight: 500;
     background: rgba(255, 255, 255, 0.2);
 }
 
-.status-connected {
-    background: #10b981;
+.status-info {
+    background: rgba(59, 130, 246, 0.2);
+    border: 1px solid rgba(59, 130, 246, 0.4);
 }
 
-.status-disconnected {
-    background: #ef4444;
+.status-success {
+    background: rgba(34, 197, 94, 0.2);
+    border: 1px solid rgba(34, 197, 94, 0.4);
+}
+
+.status-error {
+    background: rgba(239, 68, 68, 0.2);
+    border: 1px solid rgba(239, 68, 68, 0.4);
+}
+
+.status-warning {
+    background: rgba(234, 179, 8, 0.2);
+    border: 1px solid rgba(234, 179, 8, 0.4);
+}
+
+.status-message {
+    flex: 1;
+}
+
+.status-time {
+    font-size: 0.75rem;
+    opacity: 0.8;
 }
 
 /* Main Layout */
@@ -97,10 +123,8 @@ body {
 .nav-item.active {
     background: #37373d;
     border-left: 3px solid #2563eb;
-}
-
-.nav-icon {
-    font-size: 1.2rem;
+    color: #2563eb;
+    font-weight: 600;
 }
 
 /* Content Area */
@@ -138,18 +162,27 @@ body {
     padding: 1.5rem;
     border-radius: 8px;
     border: 1px solid #3e3e42;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
 .stat-card h3 {
     font-size: 0.875rem;
     color: #a0a0a0;
     margin-bottom: 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
 }
 
 .stat-value {
     font-size: 2rem;
     font-weight: 600;
     color: #2563eb;
+    margin: 0;
 }
 
 /* Action Buttons */
@@ -157,6 +190,7 @@ body {
     display: flex;
     gap: 1rem;
     margin-bottom: 2rem;
+    flex-wrap: wrap;
 }
 
 .btn {
@@ -176,6 +210,8 @@ body {
 
 .btn-primary:hover {
     background: #1d4ed8;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(37, 99, 235, 0.3);
 }
 
 .btn-secondary {
@@ -198,6 +234,7 @@ body {
 .log-section h3 {
     margin-bottom: 1rem;
     color: #e0e0e0;
+    font-size: 1.125rem;
 }
 
 .log-box {
@@ -209,11 +246,27 @@ body {
     overflow-y: auto;
     font-family: 'Consolas', 'Monaco', monospace;
     font-size: 0.875rem;
+    border: 1px solid #3e3e42;
+}
+
+.log-empty {
+    color: #a0a0a0;
+    text-align: center;
+    padding: 2rem;
+    font-style: italic;
 }
 
 .log-entry {
-    padding: 0.25rem 0;
-    border-bottom: 1px solid #3e3e42;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem;
+    border-bottom: 1px solid #2a2a2a;
+    transition: background 0.2s;
+}
+
+.log-entry:hover {
+    background: #252526;
 }
 
 .log-entry:last-child {
@@ -221,8 +274,35 @@ body {
 }
 
 .log-time {
-    color: #a0a0a0;
-    margin-right: 0.5rem;
+    color: #6b7280;
+    font-size: 0.75rem;
+    min-width: 80px;
+}
+
+.log-icon {
+    font-size: 1rem;
+}
+
+.log-message {
+    flex: 1;
+    color: #d4d4d4;
+}
+
+/* Log entry types */
+.log-info .log-message {
+    color: #3b82f6;
+}
+
+.log-success .log-message {
+    color: #22c55e;
+}
+
+.log-error .log-message {
+    color: #ef4444;
+}
+
+.log-warning .log-message {
+    color: #eab308;
 }
 
 /* List Container */
@@ -237,34 +317,165 @@ body {
     color: #a0a0a0;
     text-align: center;
     padding: 2rem;
+    font-style: italic;
 }
 
-/* Settings */
-.settings-container {
+.empty-state {
+    color: #a0a0a0;
+    text-align: center;
+    padding: 2rem;
+    font-style: italic;
+}
+
+/* Master Cards */
+.master-card {
+    background: #2a2a2a;
+    padding: 1.5rem;
+    border-radius: 8px;
+    border: 1px solid #3e3e42;
+    margin-bottom: 1rem;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.master-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.master-header {
     display: flex;
-    flex-direction: column;
-    gap: 2rem;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
 }
 
-.setting-group {
-    background: #252526;
+.master-header h3 {
+    color: #e0e0e0;
+    margin: 0;
+}
+
+.master-status {
+    padding: 0.25rem 0.75rem;
+    background: #22c55e;
+    color: white;
+    border-radius: 12px;
+    font-size: 0.875rem;
+}
+
+.master-details {
+    margin-bottom: 1rem;
+}
+
+.master-details p {
+    margin: 0.5rem 0;
+    color: #a0a0a0;
+}
+
+/* Device Cards */
+.device-card {
+    background: #2a2a2a;
+    padding: 1.5rem;
+    border-radius: 8px;
+    border: 1px solid #3e3e42;
+    margin-bottom: 1rem;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.device-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.device-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.device-header h4 {
+    color: #e0e0e0;
+    margin: 0;
+}
+
+.device-status {
+    padding: 0.25rem 0.75rem;
+    border-radius: 12px;
+    font-size: 0.875rem;
+}
+
+.device-status.connected {
+    background: #22c55e;
+    color: white;
+}
+
+.device-status.disconnected {
+    background: #ef4444;
+    color: white;
+}
+
+.device-details {
+    margin-bottom: 1rem;
+}
+
+.device-details p {
+    margin: 0.5rem 0;
+    color: #a0a0a0;
+}
+
+/* Process Data Display */
+.process-data-display {
+    background: #2a2a2a;
     padding: 1.5rem;
     border-radius: 8px;
     border: 1px solid #3e3e42;
 }
 
-.setting-group h3 {
+.data-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
     margin-bottom: 1rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid #3e3e42;
+}
+
+.data-header h4 {
+    color: #e0e0e0;
+    margin: 0;
+}
+
+.data-timestamp {
+    color: #6b7280;
+    font-size: 0.875rem;
+}
+
+.data-content {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.data-row {
+    display: flex;
+    gap: 1rem;
+}
+
+.data-label {
+    min-width: 100px;
+    color: #a0a0a0;
+    font-weight: 600;
+}
+
+.data-value {
     color: #e0e0e0;
 }
 
-.setting-group p {
-    margin-bottom: 0.5rem;
-    color: #d4d4d4;
-}
-
-.setting-group strong {
-    color: #a0a0a0;
+.monospace {
+    font-family: 'Consolas', 'Monaco', monospace;
+    background: #1e1e1e;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
 }
 
 /* Scrollbar */

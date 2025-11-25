@@ -10,6 +10,8 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.streamIntervals = exports.deviceStreams = exports.activeStreams = void 0;
 exports.handleConnection = handleConnection;
+exports.initializeWebSocket = initializeWebSocket;
+const socket_io_1 = require("socket.io");
 const deviceController_1 = require("./deviceController");
 const logger_1 = __importDefault(require("../utils/logger"));
 const constants_1 = require("../utils/constants");
@@ -59,6 +61,26 @@ function handleConnection(socket, io) {
     socket.on('disconnect', () => {
         handleDisconnection(socket);
     });
+}
+// ============================================================================
+// WEBSOCKET INITIALIZATION
+// ============================================================================
+/**
+ * Initialize WebSocket server
+ */
+function initializeWebSocket(server) {
+    const io = new socket_io_1.Server(server, {
+        cors: {
+            origin: '*',
+            methods: ['GET', 'POST'],
+        },
+        transports: ['websocket', 'polling'],
+    });
+    io.on('connection', (socket) => {
+        handleConnection(socket, io);
+    });
+    logger_1.default.info('WebSocket server initialized');
+    return io;
 }
 // ============================================================================
 // SUBSCRIPTION HANDLERS

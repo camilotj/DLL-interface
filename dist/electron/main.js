@@ -1,8 +1,4 @@
 "use strict";
-/**
- * Electron Main Process
- * Manages application lifecycle and window creation
- */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
     var desc = Object.getOwnPropertyDescriptor(m, k);
@@ -40,176 +36,155 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const electron_1 = require("electron");
 const path = __importStar(require("path"));
 const child_process_1 = require("child_process");
-// Handle creating/removing shortcuts on Windows when installing/uninstalling
-if (require('electron-squirrel-startup')) {
-    electron_1.app.quit();
-}
+const http = __importStar(require("http"));
 let mainWindow = null;
 let backendProcess = null;
-// Server configuration
-const BACKEND_PORT = 3000;
-const BACKEND_HOST = 'localhost';
-/**
- * Start the Node.js backend server
- */
-function startBackendServer() {
-    return new Promise((resolve, reject) => {
-        const serverScript = path.join(__dirname, '../server.js');
-        console.log('Starting backend server:', serverScript);
-        backendProcess = (0, child_process_1.spawn)('node', [serverScript], {
-            env: {
-                ...process.env,
-                PORT: BACKEND_PORT.toString(),
-                NODE_ENV: 'production',
-                ELECTRON_MODE: 'true'
-            },
-            stdio: 'inherit'
+// ============================================================================
+// BACKEND SERVER MANAGEMENT
+// ============================================================================
+function checkServerHealth() {
+    return new Promise((resolve) => {
+        const req = http.get('http://localhost:3000/api/v1/health', (res) => {
+            resolve(res.statusCode === 200);
         });
-        backendProcess.on('error', (err) => {
-            console.error('Failed to start backend server:', err);
-            reject(err);
+        req.on('error', () => {
+            resolve(false);
         });
-        // Wait a bit for server to start
-        setTimeout(() => {
-            console.log('Backend server should be running on port', BACKEND_PORT);
-            resolve();
-        }, 2000);
+        req.setTimeout(1000, () => {
+            req.destroy();
+            resolve(false);
+        });
     });
 }
-/**
- * Stop the backend server
- */
+async function waitForServer(maxAttempts = 30) {
+    console.log('Waiting for backend server to be ready...');
+    for (let i = 0; i < maxAttempts; i++) {
+        const isHealthy = await checkServerHealth();
+        if (isHealthy) {
+            console.log(`Backend server is ready! (attempt ${i + 1}/${maxAttempts})`);
+            return;
+        }
+        console.log(`Waiting for backend... (attempt ${i + 1}/${maxAttempts})`);
+        await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+    throw new Error('Backend server failed to start within timeout');
+}
+async function startBackendServer() {
+    return new Promise((resolve, reject) => {
+        console.log('Starting backend server as separate Node.js process...');
+        const serverPath = path.join(__dirname, '../server.js');
+        // Start backend with pure Node.js
+        backendProcess = (0, child_process_1.spawn)('node', [serverPath], {
+            env: {
+                ...process.env,
+                NODE_ENV: 'production',
+                PORT: '3000',
+            },
+            shell: true,
+            windowsHide: true, // Hide console window on Windows
+        });
+        // Capture stdout
+        backendProcess.stdout?.on('data', (data) => {
+            console.log(`[Backend] ${data.toString().trim()}`);
+        });
+        // Capture stderr
+        backendProcess.stderr?.on('data', (data) => {
+            console.error(`[Backend Error] ${data.toString().trim()}`);
+        });
+        backendProcess.on('error', (error) => {
+            console.error('Failed to start backend server:', error);
+            reject(error);
+        });
+        backendProcess.on('exit', (code) => {
+            if (code !== 0 && code !== null) {
+                console.error(`Backend process exited with code ${code}`);
+            }
+        });
+        // Wait for server to be actually ready
+        waitForServer()
+            .then(resolve)
+            .catch(reject);
+    });
+}
 function stopBackendServer() {
     if (backendProcess) {
         console.log('Stopping backend server...');
-        backendProcess.kill();
+        if (process.platform === 'win32') {
+            // Windows needs special handling
+            (0, child_process_1.spawn)('taskkill', ['/pid', backendProcess.pid.toString(), '/f', '/t']);
+        }
+        else {
+            backendProcess.kill('SIGTERM');
+        }
         backendProcess = null;
     }
 }
-/**
- * Create the main application window
- */
-async function createMainWindow() {
-    // Start backend server first
-    await startBackendServer();
-    // Create the browser window
+// ============================================================================
+// WINDOW MANAGEMENT
+// ============================================================================
+function createWindow() {
     mainWindow = new electron_1.BrowserWindow({
         width: 1400,
         height: 900,
-        minWidth: 1000,
-        minHeight: 600,
-        title: 'TMG IO-Link Interface',
-        backgroundColor: '#1e1e1e',
         webPreferences: {
             nodeIntegration: false,
             contextIsolation: true,
             preload: path.join(__dirname, 'preload.js'),
-            devTools: true
+            webSecurity: false,
         },
-        show: false // Don't show until ready-to-show
+        icon: path.join(__dirname, '../../assets/icon.png'),
+        show: false,
     });
-    // Load the frontend
-    if (process.env.NODE_ENV === 'development') {
-        // In development, load from webpack dev server or file
-        mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
-    }
-    else {
-        // In production, load from built files
-        mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
-    }
-    // Show window when ready
+    const rendererPath = path.join(__dirname, '../renderer/index.html');
+    console.log('Loading renderer from:', rendererPath);
+    mainWindow.loadFile(rendererPath);
     mainWindow.once('ready-to-show', () => {
+        console.log('Window ready to show');
         mainWindow?.show();
-        mainWindow?.focus();
     });
-    // Open DevTools in development
-    if (process.env.NODE_ENV === 'development') {
-        mainWindow.webContents.openDevTools();
-    }
-    // Handle window closed
+    mainWindow.webContents.openDevTools();
     mainWindow.on('closed', () => {
         mainWindow = null;
     });
-    // Create application menu
-    createMenu();
-}
-/**
- * Create application menu
- */
-function createMenu() {
-    const template = [
-        {
-            label: 'File',
-            submenu: [
-                {
-                    label: 'Quit',
-                    accelerator: 'CmdOrCtrl+Q',
-                    click: () => {
-                        electron_1.app.quit();
-                    }
-                }
-            ]
-        },
-        {
-            label: 'View',
-            submenu: [
-                { role: 'reload' },
-                { role: 'forceReload' },
-                { role: 'toggleDevTools' },
-                { type: 'separator' },
-                { role: 'resetZoom' },
-                { role: 'zoomIn' },
-                { role: 'zoomOut' },
-                { type: 'separator' },
-                { role: 'togglefullscreen' }
-            ]
-        },
-        {
-            label: 'Window',
-            submenu: [
-                { role: 'minimize' },
-                { role: 'close' }
-            ]
-        }
-    ];
-    const menu = electron_1.Menu.buildFromTemplate(template);
-    electron_1.Menu.setApplicationMenu(menu);
+    mainWindow.webContents.on('console-message', (event, level, message) => {
+        console.log(`[Renderer] ${message}`);
+    });
 }
 // ============================================================================
 // APP LIFECYCLE
 // ============================================================================
-// When Electron has finished initialization
-electron_1.app.whenReady().then(createMainWindow);
-// Quit when all windows are closed (except on macOS)
-electron_1.app.on('window-all-closed', () => {
-    if (process.platform !== 'darwin') {
-        stopBackendServer();
+electron_1.app.whenReady().then(async () => {
+    try {
+        console.log('Electron app ready, starting backend...');
+        await startBackendServer();
+        console.log('Backend ready, creating window...');
+        createWindow();
+    }
+    catch (error) {
+        console.error('Failed to initialize app:', error);
         electron_1.app.quit();
     }
 });
-// On macOS, re-create window when dock icon is clicked
-electron_1.app.on('activate', () => {
-    if (electron_1.BrowserWindow.getAllWindows().length === 0) {
-        createMainWindow();
+electron_1.app.on('window-all-closed', () => {
+    stopBackendServer();
+    if (process.platform !== 'darwin') {
+        electron_1.app.quit();
     }
 });
-// Clean up before quit
+electron_1.app.on('activate', () => {
+    if (electron_1.BrowserWindow.getAllWindows().length === 0) {
+        createWindow();
+    }
+});
 electron_1.app.on('before-quit', () => {
     stopBackendServer();
 });
-// ============================================================================
-// IPC HANDLERS
-// ============================================================================
-// Get server info
-electron_1.ipcMain.handle('get-server-info', async () => {
-    return {
-        host: BACKEND_HOST,
-        port: BACKEND_PORT,
-        url: `http://${BACKEND_HOST}:${BACKEND_PORT}`
-    };
+electron_1.app.on('will-quit', () => {
+    stopBackendServer();
 });
-// Get app version
-electron_1.ipcMain.handle('get-app-version', async () => {
-    return electron_1.app.getVersion();
+process.on('uncaughtException', (error) => {
+    console.error('Uncaught exception:', error);
+    stopBackendServer();
+    electron_1.app.quit();
 });
 //# sourceMappingURL=main.js.map

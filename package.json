@@ -12,7 +12,7 @@
     "package": "electron-forge package",
     "make": "electron-forge make",
     "dev": "ts-node-dev --respawn src/server.ts",
-    "dev:electron": "concurrently \"npm run dev\" \"npm run start:electron\"",
+    "dev:electron": "concurrently \"npm run dev\" \"cross-env NODE_ENV=development electron-forge start\"",
     "test": "ts-node test.ts",
     "demo": "ts-node index.ts",
     "type-check": "tsc --noEmit",
