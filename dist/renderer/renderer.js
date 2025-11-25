@@ -170,31 +170,6 @@ async function fetchDevices() {
         return [];
     }
 }
-async function fetchProcessData(master, port) {
-    try {
-        updateStatus(`Reading process data from ${master}:${port}...`, 'info');
-        addActivityLog(`Reading process data from port ${port}...`, 'info');
-        const response = await fetch(`${API_BASE_URL}/data/${master}/${port}/process`, {
-            method: 'GET',
-            headers: API_HEADERS,
-        });
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.message || `HTTP ${response.status}`);
-        }
-        const result = await response.json();
-        const data = result.data;
-        updateStatus(`Process data retrieved from ${master}:${port}`, 'success');
-        addActivityLog(`Process data read: ${data.data.length} bytes from port ${port}`, 'success');
-        return data;
-    }
-    catch (error) {
-        updateStatus(`Error reading process data: ${error.message}`, 'error');
-        addActivityLog(`Process data read failed: ${error.message}`, 'error');
-        console.error('Failed to fetch process data:', error);
-        return null;
-    }
-}
 // ============================================================================
 // UI UPDATE FUNCTIONS
 // ============================================================================
@@ -251,7 +226,7 @@ function displayDevices(devices) {
     }
     devicesListElement.innerHTML = devices
         .map((device) => `
-    <div class="device-card" data-port="${device.port}">
+    <div class="device-card" data-port="${device.port}" data-master="${device.master}">
       <div class="device-header">
         <h4>Port ${device.port}</h4>
         <span class="device-status ${device.status?.connected ? 'connected' : 'disconnected'}">
@@ -259,18 +234,50 @@ function displayDevices(devices) {
         </span>
       </div>
       <div class="device-details">
-        <p><strong>Vendor:</strong> ${device.vendorName}</p>
-        <p><strong>Device:</strong> ${device.deviceName}</p>
-        <p><strong>Vendor ID:</strong> ${device.vendorId}</p>
-        <p><strong>Device ID:</strong> ${device.deviceId}</p>
+        <p><strong>Master Handle:</strong> ${device.master}</p>
+        <p><strong>Vendor:</strong> ${device.vendorName || 'Unknown'}</p>
+        <p><strong>Device:</strong> ${device.deviceName || 'Unknown'}</p>
+        <p><strong>Vendor ID:</strong> ${device.vendorId || 'N/A'}</p>
+        <p><strong>Device ID:</strong> ${device.deviceId || 'N/A'}</p>
         ${device.serialNumber ? `<p><strong>Serial:</strong> ${device.serialNumber}</p>` : ''}
       </div>
-      <button class="btn btn-secondary" onclick="window.handleDeviceSelect('${device.master}', ${device.port})">
+      <button class="btn btn-secondary" onclick="window.handleDeviceSelect(${device.master}, ${device.port})">
         Read Process Data
       </button>
     </div>
   `)
         .join('');
+}
+async function handleDeviceSelect(master, port) {
+    console.log(`Device selected: master=${master}, port=${port}`);
+    selectedMaster = master.toString();
+    selectedPort = port;
+    await loadProcessData();
+}
+async function fetchProcessData(master, port) {
+    try {
+        updateStatus(`Reading process data from ${master}:${port}...`, 'info');
+        addActivityLog(`Reading process data from master ${master} port ${port}...`, 'info');
+        const response = await fetch(`${API_BASE_URL}/data/${master}/${port}/process`, {
+            method: 'GET',
+            headers: API_HEADERS,
+        });
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || `HTTP ${response.status}`);
+        }
+        const result = await response.json();
+        const data = result.data;
+        updateStatus(`Process data retrieved from ${master}:${port}`, 'success');
+        addActivityLog(`Process data read: ${data.data.length} bytes from master ${master} port ${port}`, 'success');
+        return data;
+    }
+    catch (error) {
+        updateStatus(`Error reading process data: ${error.message}`, 'error');
+        addActivityLog(`Process data read failed: ${error.message}`, 'error');
+        console.error('Failed to fetch process data:', error);
+        return null;
+    }
 }
 function displayProcessData(data) {
     if (!processDataElement)
@@ -324,11 +331,6 @@ async function handleMasterSelect(deviceName) {
     catch (error) {
         console.error('Error selecting master:', error);
     }
-}
-async function handleDeviceSelect(master, port) {
-    selectedMaster = master;
-    selectedPort = port;
-    await loadProcessData();
 }
 async function loadMasters() {
     const masters = await fetchMasters();
