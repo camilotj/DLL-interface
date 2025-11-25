@@ -51,7 +51,7 @@
     "@electron-forge/maker-squirrel": "^7.5.0",
     "@electron-forge/maker-zip": "^7.5.0",
     "@types/cors": "^2.8.17",
-    "@types/electron": "^1.6.10",
+    "@types/electron": "^1.6.12",
     "@types/express": "^4.17.25",
     "@types/ffi-napi": "^4.0.10",
     "@types/morgan": "^1.9.9",
